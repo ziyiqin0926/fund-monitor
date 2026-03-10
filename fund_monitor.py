@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 基金AI盯盘系统 - 本地部署版
-功能：8点早盘预测（前五天数据+新闻政策）、16点收盘复盘、持仓建议
+功能：仅保留8点早盘预测、16点收盘复盘功能
 """
 
 import argparse
@@ -99,7 +99,7 @@ class Config:
     
     DEFAULT_CONFIG = {
         "funds": [
-            # 新增的基金列表
+            # 完整基金列表
             {
                 "code": "017548",
                 "name": "天弘国证 2000 指数增强 C",
@@ -295,7 +295,6 @@ class Config:
             "pushplus_token": "",  # 请在这里填写你的PushPlus Token
             "morning_analysis_time": "08:00",  # 8点执行早盘分析
             "evening_summary_time": "16:00",    # 16点执行收盘复盘
-            "monitor_interval": 10,
             "news_keywords": ["重仓股", "基金经理", "分红", "限购", "降准", "降息", "IPO", "北向资金", "南向资金", "政策", "监管", "指数增强", "油气", "数字经济", "人工智能", "碳中和", "北证50", "科创50", "创业板"]
         },
         "ai_settings": {
@@ -1009,10 +1008,6 @@ class FundMonitor:
             self.morning_analysis()  # 8点执行
         elif mode == 'evening':
             self.evening_summary()   # 16点执行
-        elif mode == 'monitor':
-            self.realtime_monitor()
-        elif mode == 'daily':
-            self.daily_report()
         elif mode == 'daemon':
             self.run_as_daemon()
         else:
@@ -1087,88 +1082,18 @@ class FundMonitor:
         self.notifier.send(title, html)
         print("16点收盘复盘完成并已推送")
     
-    def realtime_monitor(self):
-        """实时监控"""
-        if not self._is_trading_time():
-            print("非交易时间，跳过监控")
-            return
-        
-        print("开始实时监控...")
-        
-        funds = self.config.get_funds()
-        alerts = []
-        
-        for fund in funds:
-            data = self.fetcher.get_realtime_data(fund['code'])
-            if not data:
-                continue
-            
-            change = data['change_percent']
-            threshold = fund.get('alert_threshold', 2.0)
-            
-            if abs(change) >= threshold:
-                alerts.append({
-                    'fund': fund,
-                    'data': data,
-                    'type': 'up' if change > 0 else 'down'
-                })
-                print(f"  🚨 {fund['name']}: {change:+.2f}% (触发阈值{threshold}%)")
-        
-        if alerts:
-            html = self._build_alert_html(alerts)
-            title = f"🚨 基金异动 | {len(alerts)}只触发阈值"
-            self.notifier.send(title, html)
-            print(f"已发送异动提醒: {len(alerts)}条")
-        else:
-            print("无异常波动")
-    
-    def daily_report(self):
-        """收盘日报"""
-        print("生成收盘日报...")
-        
-        funds = self.config.get_funds()
-        holdings = []
-        total_profit = 0
-        
-        for fund in funds:
-            data = self.fetcher.get_realtime_data(fund['code'])
-            if not data:
-                continue
-            
-            profit = 0
-            if fund.get('holdings', 0) > 0 and fund.get('cost_price', 0) > 0:
-                profit = (data['price'] - fund['cost_price']) * fund['holdings']
-                total_profit += profit
-            
-            holdings.append({
-                'fund': fund,
-                'data': data,
-                'profit': profit
-            })
-            print(f"  {fund['name']}: {data['change_percent']:+.2f}% | 盈亏{profit:+.2f}元")
-        
-        html = self._build_daily_html(holdings, total_profit)
-        title = f"📋 收盘日报 | 总盈亏{total_profit:+.2f}元"
-        self.notifier.send(title, html)
-        print("收盘日报已推送")
-    
     def run_as_daemon(self):
-        """后台守护模式：8点早盘分析 + 16点收盘复盘"""
+        """后台守护模式：仅保留8点早盘分析 + 16点收盘复盘"""
         print("启动后台守护模式，按 Ctrl+C 退出")
         print(f"定时任务：8点早盘分析，16点收盘复盘")
         
         # 读取配置的定时时间（已默认设置为8点和16点）
         morning_time = self.config.get_setting('morning_analysis_time', '08:00')
         evening_time = self.config.get_setting('evening_summary_time', '16:00')
-        monitor_interval = self.config.get_setting('monitor_interval', 10)
         
-        # 设置定时任务
+        # 设置定时任务（仅保留8点和16点任务）
         schedule.every().day.at(morning_time).do(self.morning_analysis)
         schedule.every().day.at(evening_time).do(self.evening_summary)
-        schedule.every(monitor_interval).minutes.do(self.realtime_monitor)
-        
-        # 立即执行一次监控
-        self.realtime_monitor()
         
         # 循环执行定时任务
         try:
@@ -1254,46 +1179,6 @@ class FundMonitor:
         
         return html
     
-    def _build_alert_html(self, alerts):
-        """构建异动提醒HTML"""
-        html = "<h2>🚨 基金异动提醒</h2>"
-        
-        for alert in alerts:
-            fund = alert['fund']
-            data = alert['data']
-            color = "red" if alert['type'] == 'up' else "green"
-            
-            html += f"""
-            <div style='margin:10px 0;padding:10px;border-left:4px solid {color}'>
-                <h3>{fund['name']} ({fund['code']})</h3>
-                <p style='font-size:18px;color:{color}'><b>{data['change_percent']:+.2f}%</b></p>
-                <p>净值: {data['price']:.4f} | 时间: {data['time']}</p>
-            </div>
-            """
-        
-        return html
-    
-    def _build_daily_html(self, holdings, total_profit):
-        """构建日报HTML"""
-        color = "red" if total_profit > 0 else "green"
-        html = f"<h2>📋 收盘日报</h2>"
-        html += f"<p style='font-size:16px'>总盈亏: <span style='color:{color};font-weight:bold'>{total_profit:+.2f}元</span></p>"
-        html += "<table border='1' cellpadding='5' style='border-collapse:collapse;width:100%'>"
-        html += "<tr style='background:#f0f0f0'><th>基金</th><th>净值</th><th>涨跌</th><th>盈亏</th></tr>"
-        
-        for h in holdings:
-            fund = h['fund']
-            data = h['data']
-            profit = h['profit']
-            c = "red" if data['change_percent'] > 0 else "green"
-            
-            html += f"<tr><td>{fund['name']}</td><td>{data['price']:.4f}</td>"
-            html += f"<td style='color:{c}'>{data['change_percent']:+.2f}%</td>"
-            html += f"<td>{profit:+.2f}</td></tr>"
-        
-        html += "</table>"
-        return html
-    
     def _generate_portfolio_advice(self, predictions):
         """生成组合策略建议"""
         up = sum(1 for p in predictions if p['prediction'] == '上涨')
@@ -1310,14 +1195,6 @@ class FundMonitor:
             html += "<p><b>组合策略:</b> 市场分化，均衡配置（50-60%仓位）</p>"
         
         return html
-    
-    def _is_trading_time(self):
-        """判断是否为交易时间"""
-        now = datetime.now()
-        if now.weekday() >= 5:
-            return False
-        t = now.time()
-        return (dt_time(9, 0) <= t <= time(11, 30)) or (dt_time(13, 0) <= t <= dt_time(15, 30))
     
     def _save_predictions(self, predictions):
         """保存8点早盘预测数据"""
@@ -1346,9 +1223,9 @@ class FundMonitor:
 # ==================== 入口 ====================
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版（8点早盘+16点复盘）')
-    parser.add_argument('--mode', choices=['morning', 'evening', 'monitor', 'daily', 'init', 'daemon'],
-                       default='monitor', help='运行模式: init(初始化配置), monitor(单次监控), morning(8点早盘分析), evening(16点收盘复盘), daily(日报), daemon(后台守护)')
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版（仅8点早盘+16点复盘）')
+    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'daemon'],
+                       default='morning', help='运行模式: init(初始化配置), morning(8点早盘分析), evening(16点收盘复盘), daemon(后台守护)')
     args = parser.parse_args()
     
     # 初始化配置
