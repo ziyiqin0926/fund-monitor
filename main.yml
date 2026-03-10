@@ -45,22 +45,22 @@ jobs:
           cat config.json | grep pushplus_token
 
       # 步骤5：执行监控脚本（根据触发时间自动选择运行模式）
-- name: Run fund monitor
-  run: |
-    HOUR=$(date +%H)
-    MINUTE=$(date +%M)
-    if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
-      python fund_monitor.py --mode query
-    elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
-      python fund_monitor.py --mode evening
-    else
-      python fund_monitor.py --mode query  # 关键：把monitor改成query
-    fi
-  env:
-    pythonLocation: /opt/hostedtoolcache/Python/3.10.19/x64
-    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib/pkgconfig
-    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
-    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
-    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
-    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib
-    TZ: Asia/Shanghai
+      - name: Run fund monitor
+        run: |
+          HOUR=$(date +%H)
+          MINUTE=$(date +%M)
+          if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
+            python fund_monitor.py --mode morning  # 修复：UTC1对应早盘模式
+          elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
+            python fund_monitor.py --mode evening  # UTC8对应复盘模式
+          else
+            python fund_monitor.py --mode query    # 其他时间执行涨跌查询（替代原monitor）
+          fi
+        env:
+          pythonLocation: /opt/hostedtoolcache/Python/3.10.19/x64
+          PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib/pkgconfig
+          Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+          Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+          Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+          LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib
+          TZ: Asia/Shanghai
