@@ -1,66 +1,25 @@
-# 工作流名称
-name: 基金AI盯盘系统
-
-# 触发条件：定时触发 + 手动触发
-on:
-  # 定时任务（注意：GitHub Actions 使用 UTC 时区，北京时间 = UTC+8）
-  schedule:
-    - cron: "0 1 * * 1-5"    # 北京时间 09:00 执行早盘分析（UTC 1:00），仅工作日
-    - cron: "0 8 * * 1-5"    # 北京时间 16:00 执行收盘复盘（UTC 8:00），仅工作日
-    - cron: "*/10 * * * 1-5" # 每 10 分钟执行一次实时监控，仅工作日
-  # 手动触发（方便测试）
-  workflow_dispatch:
-
-# 任务定义
-jobs:
-  run-fund-monitor:
-    # 运行环境：Ubuntu 最新版（Linux 环境更稳定、速度快）
-    runs-on: ubuntu-latest
+- name: Run fund monitor
+  run: |
+    # 获取当前 UTC 时间的小时数和分钟数
+    HOUR=$(date +%H)
+    MINUTE=$(date +%M)
     
-    # 任务步骤
-    steps:
-      # 步骤1：拉取仓库代码
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # 步骤2：配置 Python 环境
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"  # 指定 Python 版本（和本地一致）
-
-      # 步骤3：安装依赖包
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 schedule
-
-      # 步骤4：设置 PushPlus Token 到配置文件（关键！）
-      - name: Inject PushPlus Token
-        run: |
-          # 用 jq 工具替换 config.json 中的 pushplus_token（Ubuntu 自带 jq）
-          jq --arg token "${{ secrets.PUSHPLUS_TOKEN }}" '.settings.pushplus_token = $token' config.json > temp.json
-          mv temp.json config.json
-          # 验证替换结果（可选，仅调试）
-          cat config.json | grep pushplus_token
-
-      # 步骤5：执行监控脚本（根据触发时间自动选择运行模式）
-      - name: Run fund monitor
-        run: |
-          HOUR=$(date +%H)
-          MINUTE=$(date +%M)
-          if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
-            python fund_monitor.py --mode morning  # 修复：UTC1对应早盘模式
-          elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
-            python fund_monitor.py --mode evening  # UTC8对应复盘模式
-          else
-            python fund_monitor.py --mode query    # 其他时间执行涨跌查询（替代原monitor）
-          fi
-        env:
-          pythonLocation: /opt/hostedtoolcache/Python/3.10.19/x64
-          PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib/pkgconfig
-          Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
-          Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
-          Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
-          LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib
-          TZ: Asia/Shanghai
+    # 判断运行模式：9:00(UTC1) 跑早盘，16:00(UTC8) 跑复盘，17:00(UTC9) 查涨跌，其他时间查涨跌
+    if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
+      python fund_monitor.py --mode morning
+    elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
+      python fund_monitor.py --mode evening
+    elif [ $HOUR -eq 9 ] && [ $MINUTE -eq 0 ]; then
+      python fund_monitor.py --mode query  # 替代原daily模式，若需日报可后续扩展
+    else
+      python fund_monitor.py --mode query  # 替代原monitor模式
+    fi
+  shell: /usr/bin/bash -e {0}
+  env:
+    pythonLocation: /opt/hostedtoolcache/Python/3.10.19/x64
+    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib/pkgconfig
+    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib
+    TZ: Asia/Shanghai
