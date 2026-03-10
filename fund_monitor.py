@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 基金AI盯盘系统 - 本地部署版
-功能：仅保留8点早盘预测、16点收盘复盘功能
+功能：8点早盘预测、16点收盘复盘、非指定时间输出当日涨跌情况
 """
 
 import argparse
@@ -385,6 +385,7 @@ class FundDataFetcher:
                     'price': float(data.get('gsz', 0)),
                     'previous': float(data.get('dwjz', 0)),
                     'change_percent': float(data.get('gszzl', 0)),
+                    'change_amount': round(float(data.get('gsz', 0)) - float(data.get('dwjz', 0)), 4),
                     'time': data.get('gztime', ''),
                     'source': 'eastmoney'
                 }
@@ -804,6 +805,67 @@ class AIFundAnalyzer:
             'accuracy_score': 100 if pred_correct else 0
         }
     
+    def get_daily_change_summary(self):
+        """获取所有基金当日涨跌汇总"""
+        print(f"\n{'='*80}")
+        print(f"📊 基金当日涨跌情况汇总 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*80}")
+        
+        funds = self.config.get_funds()
+        if not funds:
+            print("⚠️  未配置任何基金")
+            return
+        
+        # 按涨跌幅度排序
+        fund_changes = []
+        for fund in funds:
+            realtime_data = self.fetcher.get_realtime_data(fund['code'])
+            if realtime_data:
+                fund_changes.append({
+                    'name': fund['name'],
+                    'code': fund['code'],
+                    'price': realtime_data['price'],
+                    'previous': realtime_data['previous'],
+                    'change_percent': realtime_data['change_percent'],
+                    'change_amount': realtime_data['change_amount'],
+                    'update_time': realtime_data['time']
+                })
+        
+        # 按涨跌幅降序排序
+        fund_changes.sort(key=lambda x: x['change_percent'], reverse=True)
+        
+        # 打印表头
+        print(f"{'基金名称':<30} {'代码':<10} {'当前价':<10} {'昨日净值':<10} {'涨跌额':<10} {'涨跌幅(%)':<10} {'更新时间'}")
+        print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*20}")
+        
+        # 打印每只基金数据
+        for fc in fund_changes:
+            # 涨跌幅颜色标记
+            if fc['change_percent'] > 0:
+                change_str = f"+{fc['change_percent']:.2f}"
+                color_mark = "🟢"
+            elif fc['change_percent'] < 0:
+                change_str = f"{fc['change_percent']:.2f}"
+                color_mark = "🔴"
+            else:
+                change_str = "0.00"
+                color_mark = "⚪"
+            
+            print(f"{fc['name']:<30} {fc['code']:<10} {fc['price']:<10.4f} {fc['previous']:<10.4f} {fc['change_amount']:<10.4f} {color_mark} {change_str:<9} {fc['update_time']}")
+        
+        # 统计信息
+        total_funds = len(fund_changes)
+        up_funds = len([f for f in fund_changes if f['change_percent'] > 0])
+        down_funds = len([f for f in fund_changes if f['change_percent'] < 0])
+        flat_funds = total_funds - up_funds - down_funds
+        
+        avg_change = sum([f['change_percent'] for f in fund_changes]) / total_funds if total_funds > 0 else 0
+        
+        print(f"{'-'*80}")
+        print(f"📈 上涨: {up_funds} 只 | 📉 下跌: {down_funds} 只 | ⚖️  持平: {flat_funds} 只")
+        print(f"📊 平均涨跌幅: {avg_change:.2f}%")
+        print(f"{'='*80}\n")
+    
     def _generate_morning_advice(self, fund, prediction, score, trend_data, sentiment):
         """8点早盘持仓建议"""
         holdings = fund.get('holdings', 0)
@@ -889,7 +951,7 @@ class AIFundAnalyzer:
                 advice['action'] = '持有'
                 advice['operations'].append("震荡走势，保持原有仓位")
         else:
-            advice['reason'].append("⚠️ 走势与预测不符，需调整策略")
+            advice['reason'].append("⚠️  走势与预测不符，需调整策略")
             if pred == '上涨' and actual_direction == '下跌':
                 advice['action'] = '止损'
                 advice['operations'].append("利好兑现变利空，建议止损或减仓")
@@ -1008,6 +1070,8 @@ class FundMonitor:
             self.morning_analysis()  # 8点执行
         elif mode == 'evening':
             self.evening_summary()   # 16点执行
+        elif mode == 'query':
+            self.analyzer.get_daily_change_summary()  # 非指定时间查询涨跌
         elif mode == 'daemon':
             self.run_as_daemon()
         else:
@@ -1033,7 +1097,7 @@ class FundMonitor:
                 print(f"  建议: {pred['advice']['action']} - {pred['advice']['operations'][0]}")
         
         if not predictions:
-            self.notifier.send("⚠️ 8点早盘分析失败", "无法获取基金数据")
+            self.notifier.send("⚠️  8点早盘分析失败", "无法获取基金数据")
             return
         
         html = self._build_morning_html(predictions)
@@ -1071,7 +1135,7 @@ class FundMonitor:
                 print(f"  复盘建议: {summary['updated_advice']['action']} - {summary['updated_advice']['operations'][0]}")
         
         if not summaries:
-            self.notifier.send("⚠️ 16点收盘复盘失败", "无法获取数据")
+            self.notifier.send("⚠️  16点收盘复盘失败", "无法获取数据")
             return
         
         html = self._build_evening_html(summaries)
@@ -1223,9 +1287,9 @@ class FundMonitor:
 # ==================== 入口 ====================
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版（仅8点早盘+16点复盘）')
-    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'daemon'],
-                       default='morning', help='运行模式: init(初始化配置), morning(8点早盘分析), evening(16点收盘复盘), daemon(后台守护)')
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版（8点早盘+16点复盘+非指定时间查询涨跌）')
+    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'daemon', 'query'],
+                       default='query', help='运行模式: init(初始化配置), morning(8点早盘分析), evening(16点收盘复盘), query(查询当日涨跌), daemon(后台守护)')
     args = parser.parse_args()
     
     # 初始化配置
@@ -1239,8 +1303,8 @@ def main():
     # 运行其他模式
     monitor = FundMonitor()
     
-    # 检查PushPlus Token
-    if not monitor.config.pushplus_token:
+    # 检查PushPlus Token（仅在早盘/复盘模式提示）
+    if args.mode in ['morning', 'evening'] and not monitor.config.pushplus_token:
         print("提示: 未配置PushPlus Token，将不会发送推送通知")
         print("获取Token: http://www.pushplus.plus → 登录后在「一对一推送」中获取")
     
