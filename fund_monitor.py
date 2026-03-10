@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 基金AI盯盘系统 - 本地部署版
-功能：实时监控、AI早盘预测、AI收盘复盘、新闻情绪分析、持仓建议
+功能：8点早盘预测（前五天数据+新闻政策）、16点收盘复盘、持仓建议
 """
 
 import argparse
@@ -13,7 +13,7 @@ import re
 import math
 import time
 import schedule
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time as dt_time
 from urllib import request, parse
 from urllib.error import URLError, HTTPError
 
@@ -99,36 +99,207 @@ class Config:
     
     DEFAULT_CONFIG = {
         "funds": [
+            # 新增的基金列表
             {
-                "code": "000001",
-                "name": "华夏成长混合",
-                "type": "hybrid",
-                "holdings": 1000,
-                "cost_price": 1.2,
-                "weight": 0.3,
+                "code": "017548",
+                "name": "天弘国证 2000 指数增强 C",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
                 "alert_threshold": 2.0,
                 "enabled": True
             },
             {
-                "code": "110022",
-                "name": "易方达消费行业",
-                "type": "stock",
-                "holdings": 500,
-                "cost_price": 3.5,
-                "weight": 0.3,
+                "code": "021620",
+                "name": "天弘中证油气产业指数 C",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
                 "alert_threshold": 3.0,
+                "enabled": True
+            },
+            {
+                "code": "002170",
+                "name": "东吴移动互联灵活配置混合 C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "022486",
+                "name": "国金中证 A500 指数增强 C",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "017484",
+                "name": "财通资管数字经济混合 C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "011803",
+                "name": "富顺长城宁景 6 个月持有期混合 A",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "021580",
+                "name": "华夏人工智能 ETF 联接 D",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "017730",
+                "name": "嘉实全球产业升级股票 (QDII) A",
+                "type": "stock",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 3.0,
+                "enabled": True
+            },
+            {
+                "code": "000071",
+                "name": "华夏恒生 ETF 联接 (QDII) A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "002580",
+                "name": "泰信鑫选灵活配置混合 C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "019993",
+                "name": "创金合信北证 50 成份指数增强 A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "018124",
+                "name": "永赢先进制造智选混合 A",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "021298",
+                "name": "中欧北证 50 成份指数 A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "015916",
+                "name": "永赢医药创新智选混合 C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "016539",
+                "name": "鹏华碳中和主题混合 A",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "119529",
+                "name": "易方达创业板 ETF 联接 A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "021175",
+                "name": "华安北证 50 成份指数 C",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "119920",
+                "name": "易方达深证 300ETF 联接 A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "011612",
+                "name": "华夏科创 50ETF 联接 A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
                 "enabled": True
             }
         ],
         "settings": {
             "pushplus_token": "",  # 请在这里填写你的PushPlus Token
-            "morning_analysis_time": "09:00",
-            "evening_summary_time": "16:00",
+            "morning_analysis_time": "08:00",  # 8点执行早盘分析
+            "evening_summary_time": "16:00",    # 16点执行收盘复盘
             "monitor_interval": 10,
-            "news_keywords": ["重仓股", "基金经理", "分红", "限购", "降准", "降息", "IPO", "北向资金", "南向资金", "政策", "监管"]
+            "news_keywords": ["重仓股", "基金经理", "分红", "限购", "降准", "降息", "IPO", "北向资金", "南向资金", "政策", "监管", "指数增强", "油气", "数字经济", "人工智能", "碳中和", "北证50", "科创50", "创业板"]
         },
         "ai_settings": {
-            "trend_days": 5,
+            "trend_days": 5,       # 固定使用前5天数据
             "news_weight": 0.4,
             "trend_weight": 0.6,
             "confidence_threshold": 0.6
@@ -139,7 +310,6 @@ class Config:
         self.config_path = config_path
         self.data = self.load()
         # 本地运行：优先读取配置文件中的token，而非环境变量
-        # 移除Gitee Go的环境变量依赖
         self.pushplus_token = self.data['settings']['pushplus_token']
     
     def load(self):
@@ -166,7 +336,7 @@ class Config:
         if data is None:
             data = self.data
         try:
-            # 确保配置文件保存在当前目录（而非/tmp）
+            # 确保配置文件保存在当前目录
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -226,10 +396,10 @@ class FundDataFetcher:
         
         return None
     
-    def get_history_data(self, fund_code, days=10):
-        """获取历史净值"""
+    def get_history_data(self, fund_code, days=5):
+        """获取前N天历史净值（固定获取前5天完整数据）"""
         try:
-            url = f"http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code={fund_code}&page=1&per={days}"
+            url = f"http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code={fund_code}&page=1&per={days + 5}"
             resp = self.http.get(url, timeout=10)
             
             match = re.search(r'var apidata=\{content:"(.+?)",records', resp)
@@ -274,7 +444,8 @@ class FundDataFetcher:
                 except:
                     continue
             
-            return history
+            # 确保只返回前5天有效数据
+            return history[:days] if len(history) >= days else history
         except Exception as e:
             print(f"获取历史数据失败 {fund_code}: {e}")
             return []
@@ -283,7 +454,7 @@ class FundDataFetcher:
 # ==================== 新闻与情绪分析 ====================
 
 class NewsAnalyzer:
-    """新闻获取与情绪分析"""
+    """新闻获取与情绪分析（强化政策新闻抓取）"""
     
     def __init__(self, config):
         self.config = config
@@ -305,13 +476,13 @@ class NewsAnalyzer:
         except:
             pass
     
-    def fetch_news(self, fund_codes, hours=48):
-        """获取新闻"""
+    def fetch_news(self, fund_codes, days=5):
+        """获取前5天相关新闻和政策（扩展时间范围）"""
         all_news = []
         cache = self.load_cache()
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        cutoff_time = datetime.now() - timedelta(days=days)
         
-        # 获取基金公告
+        # 1. 获取基金公告
         for code in fund_codes:
             try:
                 news = self._fetch_fund_announcement(code)
@@ -320,13 +491,50 @@ class NewsAnalyzer:
                         all_news.append(n)
                         cache[n['id']] = datetime.now().isoformat()
             except Exception as e:
-                print(f"获取新闻失败 {code}: {e}")
+                print(f"获取基金公告失败 {code}: {e}")
+        
+        # 2. 获取政策相关新闻（新增）
+        try:
+            policy_news = self._fetch_policy_news(days)
+            for n in policy_news:
+                if self._is_new_news(n, cache, cutoff_time):
+                    all_news.append(n)
+                    cache[n['id']] = datetime.now().isoformat()
+        except Exception as e:
+            print(f"获取政策新闻失败: {e}")
         
         self.save_cache(cache)
         return all_news
     
+    def _fetch_policy_news(self, days=5):
+        """获取宏观政策新闻"""
+        news = []
+        try:
+            # 东方财富网宏观新闻
+            url = "http://data.eastmoney.com/cjsj/hbgy.html"
+            resp = self.http.get(url, timeout=10)
+            
+            # 提取政策相关新闻
+            if HAS_BS4:
+                soup = BeautifulSoup(resp, 'html.parser')
+                items = soup.find_all('a', href=re.compile('news'))[:10]
+                for item in items:
+                    title = item.get_text(strip=True)
+                    if any(keyword in title for keyword in self.config.get_setting('news_keywords', [])):
+                        news.append({
+                            'id': f"policy_{hash(title) % 10000}",
+                            'title': title,
+                            'source': '宏观政策',
+                            'time': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                            'type': 'policy',
+                            'fund_code': 'policy'
+                        })
+        except Exception as e:
+            print(f"抓取政策新闻失败: {e}")
+        return news
+    
     def _is_new_news(self, news, cache, cutoff_time):
-        """检查是否为新新闻"""
+        """检查是否为前5天的新闻"""
         news_id = news['id']
         if news_id in cache:
             return False
@@ -387,15 +595,15 @@ class NewsAnalyzer:
         return news
     
     def analyze_sentiment(self, news_list, fund_info=None):
-        """情绪分析"""
+        """情绪分析（强化政策权重）"""
         if not news_list:
             return {'score': 0, 'level': '中性', 'keywords': [], 'relevant_news': []}
         
-        # 情绪词典
-        positive_words = ['利好', '上涨', '反弹', '增长', '增持', '买入', '降准', '降息', '刺激', '支持', '分红', '超预期', '盈利', '增长']
-        negative_words = ['利空', '下跌', '调整', '减持', '卖出', '限购', '监管', '处罚', '违约', '暴雷', '亏损', '不及预期', '回撤']
-        strong_positive = ['涨停', '暴涨', '牛市', '大放水', '创新高']
-        strong_negative = ['跌停', '暴跌', '熊市', '崩盘', '清盘', '腰斩']
+        # 情绪词典（强化政策相关词汇）
+        positive_words = ['利好', '上涨', '反弹', '增长', '增持', '买入', '降准', '降息', '刺激', '支持', '分红', '超预期', '盈利', '增长', '宽松', '扶持', '创新', '升级', '碳中和', '先进制造']
+        negative_words = ['利空', '下跌', '调整', '减持', '卖出', '限购', '监管', '处罚', '违约', '暴雷', '亏损', '不及预期', '回撤', '紧缩', '加息', '风险', '波动']
+        strong_positive = ['涨停', '暴涨', '牛市', '大放水', '创新高', '重磅利好']
+        strong_negative = ['跌停', '暴跌', '熊市', '崩盘', '清盘', '腰斩', '重磅利空']
         
         score = 0
         keywords = []
@@ -425,9 +633,9 @@ class NewsAnalyzer:
                     news_score -= 1
                     matched.append(word)
             
-            # 加权
+            # 政策新闻权重更高
             if news.get('type') == 'policy':
-                news_score *= 1.5
+                news_score *= 2.0  # 政策新闻权重提升至2倍
             elif news.get('type') == 'announcement':
                 news_score *= 1.2
             
@@ -462,7 +670,7 @@ class NewsAnalyzer:
 # ==================== AI分析引擎 ====================
 
 class AIFundAnalyzer:
-    """AI基金分析引擎"""
+    """AI基金分析引擎（强化前5天数据整合）"""
     
     def __init__(self, config):
         self.config = config
@@ -470,114 +678,120 @@ class AIFundAnalyzer:
         self.news_analyzer = NewsAnalyzer(config)
     
     def analyze_trend(self, fund_code, days=5):
-        """分析基金走势"""
-        history = self.fetcher.get_history_data(fund_code, days + 5)
+        """分析前5天基金走势（固定5天）"""
+        history = self.fetcher.get_history_data(fund_code, days)
         if len(history) < days:
+            print(f"警告: {fund_code} 前{days}天数据不足，仅获取到{len(history)}天")
             return None
         
-        recent = history[:days]
-        navs = [d['nav'] for d in recent]
+        # 整理前5天完整数据
+        trend_data = {
+            'trend_days': days,
+            'daily_data': [],
+            'total_change': 0,
+            'avg_change': 0,
+            'max_change': 0,
+            'min_change': 0,
+            'trend': '震荡'
+        }
         
-        # 计算涨跌幅
+        # 计算每日涨跌幅
         changes = []
-        for i in range(len(navs)-1):
-            change = (navs[i] - navs[i+1]) / navs[i+1] * 100
+        for i in range(len(history)-1):
+            current = history[i]['nav']
+            prev = history[i+1]['nav']
+            change = (current - prev) / prev * 100
             changes.append(change)
+            trend_data['daily_data'].append({
+                'date': history[i]['date'],
+                'nav': current,
+                'change': round(change, 2)
+            })
         
-        avg_change = sum(changes) / len(changes) if changes else 0
-        
-        # 动量
-        if len(changes) >= 3:
-            recent_momentum = sum(changes[:3]) / 3
-            past_momentum = sum(changes[3:]) / max(len(changes)-3, 1)
-            momentum = (recent_momentum - past_momentum) / 10
-        else:
-            momentum = avg_change / 10
-        
-        momentum = max(-1, min(1, momentum))
-        
-        # 波动率
-        if len(changes) > 1:
-            variance = sum((x - avg_change) ** 2 for x in changes) / len(changes)
-            volatility = math.sqrt(variance)
-        else:
-            volatility = 0
+        # 计算汇总指标
+        trend_data['total_change'] = round(sum(changes), 2)
+        trend_data['avg_change'] = round(sum(changes) / len(changes), 2) if changes else 0
+        trend_data['max_change'] = round(max(changes), 2) if changes else 0
+        trend_data['min_change'] = round(min(changes), 2) if changes else 0
         
         # 趋势判断
-        if avg_change > 0.5 and momentum > 0:
-            trend = '上升'
-        elif avg_change < -0.5 and momentum < 0:
-            trend = '下降'
+        if trend_data['avg_change'] > 0.5:
+            trend_data['trend'] = '上升'
+        elif trend_data['avg_change'] < -0.5:
+            trend_data['trend'] = '下降'
         else:
-            trend = '震荡'
+            trend_data['trend'] = '震荡'
         
-        return {
-            'trend': trend,
-            'momentum': round(momentum, 2),
-            'volatility': round(volatility, 2),
-            'avg_change': round(avg_change, 2),
-            'data': recent
-        }
+        return trend_data
     
     def predict_today(self, fund):
-        """早盘预测"""
+        """8点早盘预测：整合前5天数据+新闻政策，推算今日涨跌并给出持仓建议"""
         code = fund['code']
+        days = self.config.get_ai_setting('trend_days', 5)
         
-        # 趋势分析
-        trend_data = self.analyze_trend(code, self.config.get_ai_setting('trend_days', 5))
+        print(f"正在分析 {fund['name']} 前{days}天数据...")
+        
+        # 1. 分析前5天走势
+        trend_data = self.analyze_trend(code, days)
         if not trend_data:
             return None
         
-        # 新闻情绪
-        news = self.news_analyzer.fetch_news([code], hours=48)
+        # 2. 获取前5天相关新闻和政策
+        news = self.news_analyzer.fetch_news([code], days=days)
         sentiment = self.news_analyzer.analyze_sentiment(news, fund)
         
-        # 综合预测
-        trend_score = trend_data['momentum'] * self.config.get_ai_setting('trend_weight', 0.6)
+        # 3. 综合预测（前5天趋势 + 新闻政策）
+        trend_score = (trend_data['avg_change'] / 10) * self.config.get_ai_setting('trend_weight', 0.6)
         news_score = sentiment['score'] * self.config.get_ai_setting('news_weight', 0.4)
         total_score = trend_score + news_score
         
-        if total_score > 0.5:
+        # 涨跌判断
+        if total_score > 0.3:
             prediction = '上涨'
-            prob = min(95, 50 + total_score * 50)
-        elif total_score < -0.5:
+            prob = min(95, 50 + total_score * 60)
+        elif total_score < -0.3:
             prediction = '下跌'
-            prob = min(95, 50 - total_score * 50)
+            prob = min(95, 50 - total_score * 60)
         else:
             prediction = '震荡'
             prob = 50
         
-        # 生成建议
-        advice = self._generate_advice(fund, prediction, total_score, trend_data, sentiment)
+        # 生成持仓建议
+        advice = self._generate_morning_advice(fund, prediction, total_score, trend_data, sentiment)
         
         return {
             'fund': fund,
             'prediction': prediction,
             'probability': round(prob, 1),
             'confidence': '高' if abs(total_score) > 0.6 else '中' if abs(total_score) > 0.3 else '低',
-            'trend': trend_data,
+            'trend_5d': trend_data,  # 明确标注前5天趋势
             'sentiment': sentiment,
             'total_score': round(total_score, 2),
             'advice': advice,
-            'news_summary': self._summarize_news(news[:3])
+            'news_summary': self._summarize_news(news[:5])  # 展示更多新闻
         }
     
     def summarize_day(self, fund, morning_prediction):
-        """收盘复盘"""
+        """16点收盘复盘：分析今日涨跌，更新持仓建议"""
         code = fund['code']
         
+        # 获取今日实际数据
         realtime = self.fetcher.get_realtime_data(code)
         if not realtime:
+            print(f"无法获取{fund['name']}今日实时数据")
             return None
         
         actual_change = realtime['change_percent']
         actual_direction = '上涨' if actual_change > 0.1 else '下跌' if actual_change < -0.1 else '震荡'
         
+        # 对比早盘预测
         pred = morning_prediction.get('prediction', '震荡')
         pred_correct = (pred == actual_direction) or (pred == '震荡' and abs(actual_change) < 0.5)
         
+        # 分析偏差原因
         deviation_reason = self._analyze_deviation(morning_prediction, actual_change, actual_direction)
-        updated_advice = self._update_advice(fund, morning_prediction, actual_change, actual_direction)
+        # 生成复盘持仓建议
+        updated_advice = self._generate_evening_advice(fund, morning_prediction, actual_change, actual_direction)
         
         return {
             'fund': fund,
@@ -591,47 +805,53 @@ class AIFundAnalyzer:
             'accuracy_score': 100 if pred_correct else 0
         }
     
-    def _generate_advice(self, fund, prediction, score, trend, sentiment):
-        """生成持仓建议"""
+    def _generate_morning_advice(self, fund, prediction, score, trend_data, sentiment):
+        """8点早盘持仓建议"""
         holdings = fund.get('holdings', 0)
         cost = fund.get('cost_price', 0)
-        
         advice = {
             'action': '持有',
             'action_color': 'blue',
-            'reason': [],
+            'reason': [f"前{trend_data['trend_days']}天整体{trend_data['trend']}，平均涨跌幅{trend_data['avg_change']:+.2f}%"],
             'operations': []
         }
         
+        # 结合前5天趋势和新闻情绪给出建议
         if prediction == '上涨':
             if score > 0.8:
                 advice['action'] = '加仓'
                 advice['action_color'] = 'red'
-                advice['operations'].append('今日可逢低加仓10-20%')
-            else:
+                advice['operations'].append(f"前{trend_data['trend_days']}天趋势向好+政策情绪{sentiment['level']}，建议加仓10-20%")
+            elif score > 0.4:
                 advice['action'] = '持有'
-                advice['operations'].append('继续持有，等待上涨')
-            advice['reason'].append(f'技术面向好，{sentiment["level"]}情绪支撑')
+                advice['operations'].append(f"前{trend_data['trend_days']}天趋势平稳+情绪中性偏多，继续持有")
+            else:
+                advice['action'] = '观望'
+                advice['operations'].append(f"上涨信号较弱，建议观望为主")
+            advice['reason'].append(f"情绪面: {sentiment['level']} (分数:{sentiment['score']:+.2f})")
             
         elif prediction == '下跌':
             if score < -0.8:
                 advice['action'] = '减仓'
                 advice['action_color'] = 'green'
-                advice['operations'].append('建议减仓20-30%避险')
+                advice['operations'].append(f"前{trend_data['trend_days']}天趋势走弱+政策情绪{sentiment['level']}，建议减仓20-30%避险")
+            elif score < -0.4:
+                advice['action'] = '减仓'
+                advice['operations'].append(f"前{trend_data['trend_days']}天震荡下跌+情绪偏空，建议减仓10%")
             else:
                 advice['action'] = '观望'
-                advice['operations'].append('暂停加仓，观察走势')
-            advice['reason'].append(f'技术面走弱，{sentiment["level"]}情绪压制')
+                advice['operations'].append(f"下跌信号较弱，暂停加仓，观察走势")
+            advice['reason'].append(f"情绪面: {sentiment['level']} (分数:{sentiment['score']:+.2f})")
         else:
             advice['action'] = '持有'
-            advice['operations'].append('震荡市，网格交易或持有不动')
-            advice['reason'].append('趋势不明，等待方向选择')
+            advice['operations'].append(f"前{trend_data['trend_days']}天震荡走势+情绪中性，建议持有不动或网格交易")
         
+        # 关键信息补充
         if sentiment['keywords']:
-            advice['reason'].append(f"关键词: {', '.join(sentiment['keywords'][:3])}")
+            advice['reason'].append(f"核心影响因素: {', '.join(sentiment['keywords'][:3])}")
         
-        if trend['volatility'] > 2:
-            advice['reason'].append('近期波动较大，注意风险控制')
+        if trend_data['max_change'] > 2 or trend_data['min_change'] < -2:
+            advice['reason'].append(f"前{trend_data['trend_days']}天波动较大（最大{trend_data['max_change']:+.2f}%），注意风险控制")
         
         # 盈亏建议
         if holdings > 0 and cost > 0:
@@ -639,73 +859,87 @@ class AIFundAnalyzer:
             if current:
                 profit_pct = (current['price'] - cost) / cost * 100
                 if profit_pct > 10:
-                    advice['operations'].append(f'目前盈利{profit_pct:.1f}%，可考虑部分止盈')
+                    advice['operations'].append(f"当前盈利{profit_pct:.1f}%，可考虑部分止盈")
                 elif profit_pct < -10:
-                    advice['operations'].append(f'目前亏损{abs(profit_pct):.1f}%，谨慎补仓')
+                    advice['operations'].append(f"当前亏损{abs(profit_pct):.1f}%，谨慎补仓")
         
         return advice
     
-    def _update_advice(self, fund, morning_pred, actual_change, actual_direction):
-        """更新建议"""
+    def _generate_evening_advice(self, fund, morning_pred, actual_change, actual_direction):
+        """16点复盘持仓建议"""
         advice = {
             'action': '维持',
             'reason': [],
             'operations': []
         }
         
-        pred = morning_pred.get('prediction', '震荡')
+        # 今日实际表现
+        advice['reason'].append(f"今日实际{actual_direction} {actual_change:+.2f}%")
         
-        if (pred == actual_direction) or (pred == '震荡' and abs(actual_change) < 0.5):
-            advice['reason'].append('✅ 早盘预测准确，策略有效')
+        # 结合早盘预测给出建议
+        pred = morning_pred.get('prediction', '震荡')
+        if pred == actual_direction:
+            advice['reason'].append("✅ 早盘预测准确，策略有效")
             if actual_direction == '上涨':
-                advice['operations'].append('趋势确认，可继续持有')
+                advice['action'] = '继续持有'
+                advice['operations'].append("趋势确认上涨，继续持有待涨")
+            elif actual_direction == '下跌':
+                advice['action'] = '减仓'
+                advice['operations'].append("趋势确认下跌，建议减仓避险")
             else:
-                advice['operations'].append('风险释放，明日观察企稳信号')
+                advice['action'] = '持有'
+                advice['operations'].append("震荡走势，保持原有仓位")
         else:
-            advice['reason'].append('⚠️ 走势与预测不符，需调整策略')
+            advice['reason'].append("⚠️ 走势与预测不符，需调整策略")
             if pred == '上涨' and actual_direction == '下跌':
                 advice['action'] = '止损'
-                advice['operations'].append('利好兑现变利空，考虑止损')
+                advice['operations'].append("利好兑现变利空，建议止损或减仓")
             elif pred == '下跌' and actual_direction == '上涨':
                 advice['action'] = '追涨'
-                advice['operations'].append('强势反转，明日可追涨')
+                advice['operations'].append("强势反转，明日可适量追涨")
+            else:
+                advice['action'] = '观望'
+                advice['operations'].append("趋势不明，明日继续观察")
         
+        # 极端波动提醒
         if abs(actual_change) > 3:
-            advice['operations'].append(f'今日波动较大({actual_change:+.2f}%)，注意仓位管理')
+            advice['operations'].append(f"今日波动超过3%，建议严控仓位")
         
         return advice
     
     def _analyze_deviation(self, morning_pred, actual_change, actual_direction):
-        """分析偏差"""
+        """分析预测偏差原因"""
         reasons = []
         sentiment = morning_pred.get('sentiment', {})
-        trend = morning_pred.get('trend', {})
+        trend = morning_pred.get('trend_5d', {})
         
         if sentiment.get('score', 0) * actual_change < 0:
-            reasons.append('盘中情绪发生反转')
+            reasons.append("盘中政策/新闻情绪发生反转")
         
-        if abs(actual_change) > trend.get('volatility', 1) * 3:
-            reasons.append('出现超预期波动')
+        if abs(actual_change) > abs(trend.get('avg_change', 0)) * 3:
+            reasons.append("出现超预期突发波动")
         
         if trend.get('trend') == '上升' and actual_direction == '下跌':
-            reasons.append('上升趋势被打破')
+            reasons.append("上升趋势被突发利空打破")
         elif trend.get('trend') == '下降' and actual_direction == '上涨':
-            reasons.append('下跌趋势逆转')
+            reasons.append("下跌趋势被突发利好逆转")
         
         if not reasons:
-            reasons.append('正常波动范围内')
+            reasons.append("走势在正常预测误差范围内")
         
         return reasons
     
     def _summarize_news(self, news_list):
-        """总结新闻"""
+        """总结前5天相关新闻和政策"""
         if not news_list:
-            return "无重大新闻"
+            return "无重大新闻和政策影响"
         
         summaries = []
-        for n in news_list[:3]:
-            title = n.get('title', '')[:40]
-            summaries.append(f"• {n.get('source', '未知')}: {title}...")
+        for n in news_list[:5]:
+            title = n.get('title', '')[:50]
+            source = n.get('source', '未知')
+            news_type = '【政策】' if n.get('type') == 'policy' else '【公告】'
+            summaries.append(f"• {news_type}{source}: {title}...")
         
         return "<br>".join(summaries)
 
@@ -761,7 +995,7 @@ class FundMonitor:
         self.fetcher = FundDataFetcher()
         self.analyzer = AIFundAnalyzer(self.config)
         self.notifier = PushNotifier(self.config.pushplus_token)
-        # 本地预测数据保存路径（Windows兼容）
+        # 本地预测数据保存路径
         self.prediction_file = os.path.join(os.getcwd(), 'fund_predictions.json')
     
     def run(self, mode):
@@ -772,21 +1006,21 @@ class FundMonitor:
         print(f"{'='*50}\n")
         
         if mode == 'morning':
-            self.morning_analysis()
+            self.morning_analysis()  # 8点执行
         elif mode == 'evening':
-            self.evening_summary()
+            self.evening_summary()   # 16点执行
         elif mode == 'monitor':
             self.realtime_monitor()
         elif mode == 'daily':
             self.daily_report()
-        elif mode == 'daemon':  # 新增：后台守护模式
+        elif mode == 'daemon':
             self.run_as_daemon()
         else:
             print(f"未知模式: {mode}")
     
     def morning_analysis(self):
-        """早盘分析"""
-        print("开始早盘AI分析...")
+        """8点早盘分析：整合前5天数据+新闻政策，预测今日涨跌，给出持仓建议"""
+        print("开始8点早盘AI分析（整合前5天数据+新闻政策）...")
         
         funds = self.config.get_funds()
         if not funds:
@@ -796,30 +1030,31 @@ class FundMonitor:
         predictions = []
         
         for fund in funds:
-            print(f"分析 {fund['name']} ({fund['code']})...")
+            print(f"分析 {fund['name']} ({fund['code']}) 前5天数据...")
             pred = self.analyzer.predict_today(fund)
             if pred:
                 predictions.append(pred)
                 print(f"  预测: {pred['prediction']} (概率{pred['probability']}%)")
+                print(f"  建议: {pred['advice']['action']} - {pred['advice']['operations'][0]}")
         
         if not predictions:
-            self.notifier.send("⚠️ 早盘分析失败", "无法获取基金数据")
+            self.notifier.send("⚠️ 8点早盘分析失败", "无法获取基金数据")
             return
         
         html = self._build_morning_html(predictions)
-        title = f"🌅 AI早盘预测 | {datetime.now().strftime('%m-%d')} | {len(predictions)}只基金"
+        title = f"🌅 8点AI早盘预测 | {datetime.now().strftime('%m-%d')} | 整合前5天数据+政策新闻"
         
         self.notifier.send(title, html)
         self._save_predictions(predictions)
-        print("早盘分析完成并已推送")
+        print("8点早盘分析完成并已推送")
     
     def evening_summary(self):
-        """收盘复盘"""
-        print("开始收盘AI复盘...")
+        """16点收盘复盘：分析今日涨跌，更新持仓建议"""
+        print("开始16点收盘AI复盘...")
         
         morning_preds = self._load_predictions()
         if not morning_preds:
-            print("未找到早盘预测数据，跳过复盘")
+            print("未找到8点早盘预测数据，跳过复盘")
             return
         
         funds = self.config.get_funds()
@@ -832,24 +1067,25 @@ class FundMonitor:
             if not morning_pred:
                 continue
             
-            print(f"复盘 {fund['name']} ({code})...")
+            print(f"复盘 {fund['name']} ({code}) 今日表现...")
             summary = self.analyzer.summarize_day(fund, morning_pred)
             if summary:
                 summaries.append(summary)
                 status = "✅准确" if summary['prediction_correct'] else "❌偏差"
                 print(f"  预测{status}: 预计{morning_pred.get('prediction','?')} vs 实际{summary['actual_direction']}")
+                print(f"  复盘建议: {summary['updated_advice']['action']} - {summary['updated_advice']['operations'][0]}")
         
         if not summaries:
-            self.notifier.send("⚠️ 收盘复盘失败", "无法获取数据")
+            self.notifier.send("⚠️ 16点收盘复盘失败", "无法获取数据")
             return
         
         html = self._build_evening_html(summaries)
         correct_count = sum(1 for s in summaries if s['prediction_correct'])
         accuracy = correct_count / len(summaries) * 100 if summaries else 0
         
-        title = f"🌙 AI收盘复盘 | 准确率{accuracy:.0f}% | {len(summaries)}只基金"
+        title = f"🌙 16点AI收盘复盘 | 准确率{accuracy:.0f}% | 更新持仓建议"
         self.notifier.send(title, html)
-        print("收盘复盘完成并已推送")
+        print("16点收盘复盘完成并已推送")
     
     def realtime_monitor(self):
         """实时监控"""
@@ -917,11 +1153,12 @@ class FundMonitor:
         print("收盘日报已推送")
     
     def run_as_daemon(self):
-        """后台守护模式（本地持续运行）"""
+        """后台守护模式：8点早盘分析 + 16点收盘复盘"""
         print("启动后台守护模式，按 Ctrl+C 退出")
+        print(f"定时任务：8点早盘分析，16点收盘复盘")
         
-        # 读取配置的定时时间
-        morning_time = self.config.get_setting('morning_analysis_time', '09:00')
+        # 读取配置的定时时间（已默认设置为8点和16点）
+        morning_time = self.config.get_setting('morning_analysis_time', '08:00')
         evening_time = self.config.get_setting('evening_summary_time', '16:00')
         monitor_interval = self.config.get_setting('monitor_interval', 10)
         
@@ -944,8 +1181,10 @@ class FundMonitor:
     
     # HTML构建方法
     def _build_morning_html(self, predictions):
-        html = "<h2>🤖 AI早盘预测报告</h2>"
-        html += f"<p style='color:#666'>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p><hr>"
+        """构建8点早盘分析HTML"""
+        html = "<h2>🤖 8点AI早盘预测报告</h2>"
+        html += f"<p style='color:#666'>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>"
+        html += "<p style='color:#333'><b>分析依据：前5天涨跌盘面 + 相关新闻政策</b></p><hr>"
         
         for pred in predictions:
             fund = pred['fund']
@@ -953,17 +1192,25 @@ class FundMonitor:
             color = advice['action_color']
             pred_color = "red" if pred["prediction"]=="上涨" else "green" if pred["prediction"]=="下跌" else "gray"
             
+            # 展示前5天详细数据
+            trend_data = pred['trend_5d']
+            daily_html = ""
+            for day in trend_data['daily_data']:
+                day_color = "red" if day['change'] > 0 else "green"
+                daily_html += f"<span style='color:{day_color}'>{day['date']}: {day['change']:+.2f}%</span> | "
+            
             html += f"""
             <div style='margin:15px 0;padding:10px;border-left:4px solid {color};background:#f9f9f9'>
                 <h3>{fund['name']} ({fund['code']})</h3>
-                <p><b>预测:</b> <span style='color:{pred_color};font-size:16px'>{pred['prediction']} (概率{pred['probability']}%)</span> 
+                <p><b>前5天走势:</b> {trend_data['trend']} (总涨跌幅{trend_data['total_change']:+.2f}%)</p>
+                <p><b>每日详情:</b> {daily_html[:-3]}</p>
+                <p><b>今日预测:</b> <span style='color:{pred_color};font-size:16px'>{pred['prediction']} (概率{pred['probability']}%)</span> 
                 <span style='color:#999'>置信度:{pred['confidence']}</span></p>
-                <p><b>技术面:</b> {pred['trend']['trend']} (动量:{pred['trend']['momentum']:+.2f})</p>
                 <p><b>情绪面:</b> {pred['sentiment']['level']} (分数:{pred['sentiment']['score']:+.2f})</p>
-                <p><b>建议:</b> <span style='color:{color};font-weight:bold'>{advice['action']}</span></p>
+                <p><b>持仓建议:</b> <span style='color:{color};font-weight:bold'>{advice['action']}</span></p>
                 <ul>{"".join(f"<li>{r}</li>" for r in advice['reason'])}</ul>
-                <p style='color:#0066cc'><b>操作:</b><br>{"".join(f"• {op}<br>" for op in advice['operations'])}</p>
-                <p style='color:#666;font-size:12px'><b>相关新闻:</b><br>{pred['news_summary']}</p>
+                <p style='color:#0066cc'><b>操作建议:</b><br>{"".join(f"• {op}<br>" for op in advice['operations'])}</p>
+                <p style='color:#666;font-size:12px'><b>相关新闻政策:</b><br>{pred['news_summary']}</p>
             </div>
             """
         
@@ -972,7 +1219,8 @@ class FundMonitor:
         return html
     
     def _build_evening_html(self, summaries):
-        html = "<h2>🌙 AI收盘复盘报告</h2>"
+        """构建16点复盘HTML"""
+        html = "<h2>🌙 16点AI收盘复盘报告</h2>"
         html += f"<p style='color:#666'>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p><hr>"
         
         correct = sum(1 for s in summaries if s['prediction_correct'])
@@ -995,11 +1243,11 @@ class FundMonitor:
             <div style='margin:15px 0;padding:10px;border-left:4px solid {pred_color};background:#f9f9f9'>
                 <h3>{fund['name']} ({fund['code']})</h3>
                 <p><b>早盘预测:</b> {morning.get('prediction', '未知')} | 
-                <b>实际:</b> <span style='color:{actual_color}'>{rt['change_percent']:+.2f}%</span>
+                <b>今日实际:</b> <span style='color:{actual_color}'>{rt['change_percent']:+.2f}% ({summary['actual_direction']})</span>
                 <span style='color:{pred_color};margin-left:10px'>{pred_status}</span></p>
                 <p><b>偏差分析:</b></p>
                 <ul>{"".join(f"<li>{r}</li>" for r in summary['deviation_analysis'])}</ul>
-                <p style='color:#0066cc'><b>更新建议:</b> {updated['action']}<br>
+                <p style='color:#0066cc'><b>最新持仓建议:</b> {updated['action']}<br>
                 {"".join(f"• {op}<br>" for op in updated['operations'])}</p>
             </div>
             """
@@ -1007,6 +1255,7 @@ class FundMonitor:
         return html
     
     def _build_alert_html(self, alerts):
+        """构建异动提醒HTML"""
         html = "<h2>🚨 基金异动提醒</h2>"
         
         for alert in alerts:
@@ -1025,6 +1274,7 @@ class FundMonitor:
         return html
     
     def _build_daily_html(self, holdings, total_profit):
+        """构建日报HTML"""
         color = "red" if total_profit > 0 else "green"
         html = f"<h2>📋 收盘日报</h2>"
         html += f"<p style='font-size:16px'>总盈亏: <span style='color:{color};font-weight:bold'>{total_profit:+.2f}元</span></p>"
@@ -1045,6 +1295,7 @@ class FundMonitor:
         return html
     
     def _generate_portfolio_advice(self, predictions):
+        """生成组合策略建议"""
         up = sum(1 for p in predictions if p['prediction'] == '上涨')
         down = sum(1 for p in predictions if p['prediction'] == '下跌')
         neutral = len(predictions) - up - down
@@ -1052,23 +1303,24 @@ class FundMonitor:
         html = f"<p><b>市场情绪:</b> 看多{up}只 / 看空{down}只 / 震荡{neutral}只</p>"
         
         if up > down + neutral:
-            html += "<p style='color:red'><b>策略:</b> 市场偏乐观，保持较高仓位</p>"
+            html += "<p style='color:red'><b>组合策略:</b> 市场偏乐观，保持较高仓位（70-80%）</p>"
         elif down > up + neutral:
-            html += "<p style='color:green'><b>策略:</b> 市场偏谨慎，降低仓位防御</p>"
+            html += "<p style='color:green'><b>组合策略:</b> 市场偏谨慎，降低仓位防御（30-40%）</p>"
         else:
-            html += "<p><b>策略:</b> 市场分化，均衡配置</p>"
+            html += "<p><b>组合策略:</b> 市场分化，均衡配置（50-60%仓位）</p>"
         
         return html
     
     def _is_trading_time(self):
+        """判断是否为交易时间"""
         now = datetime.now()
         if now.weekday() >= 5:
             return False
         t = now.time()
-        # 放宽交易时间判断（包含早盘竞价和尾盘）
-        return (time(9, 0) <= t <= time(11, 30)) or (time(13, 0) <= t <= time(15, 30))
+        return (dt_time(9, 0) <= t <= time(11, 30)) or (dt_time(13, 0) <= t <= dt_time(15, 30))
     
     def _save_predictions(self, predictions):
+        """保存8点早盘预测数据"""
         try:
             data = {
                 'date': datetime.now().strftime('%Y-%m-%d'),
@@ -1080,6 +1332,7 @@ class FundMonitor:
             print(f"保存预测失败: {e}")
     
     def _load_predictions(self):
+        """加载当日8点早盘预测数据"""
         try:
             with open(self.prediction_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -1093,9 +1346,9 @@ class FundMonitor:
 # ==================== 入口 ====================
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版')
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版（8点早盘+16点复盘）')
     parser.add_argument('--mode', choices=['morning', 'evening', 'monitor', 'daily', 'init', 'daemon'],
-                       default='monitor', help='运行模式: init(初始化配置), monitor(单次监控), morning(早盘分析), evening(收盘复盘), daily(日报), daemon(后台守护)')
+                       default='monitor', help='运行模式: init(初始化配置), monitor(单次监控), morning(8点早盘分析), evening(16点收盘复盘), daily(日报), daemon(后台守护)')
     args = parser.parse_args()
     
     # 初始化配置
@@ -1103,13 +1356,13 @@ def main():
         config = Config()
         config.save()
         print("✅ 已创建默认配置文件 config.json")
-        print("请编辑 config.json 添加你的基金信息和PushPlus Token")
+        print("请编辑 config.json 添加你的基金持仓信息和PushPlus Token")
         return
     
     # 运行其他模式
     monitor = FundMonitor()
     
-    # 检查PushPlus Token（非必须，无token则仅控制台输出）
+    # 检查PushPlus Token
     if not monitor.config.pushplus_token:
         print("提示: 未配置PushPlus Token，将不会发送推送通知")
         print("获取Token: http://www.pushplus.plus → 登录后在「一对一推送」中获取")
