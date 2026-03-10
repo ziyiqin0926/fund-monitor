@@ -1,0 +1,47 @@
+{
+  "funds": [
+    {
+      "code": "000001",
+      "name": "华夏成长混合",
+      "type": "hybrid",
+      "holdings": 1000,
+      "cost_price": 1.25,
+      "weight": 0.3,
+      "alert_threshold": 2.0,
+      "enabled": true
+    },
+    {
+      "code": "110022",
+      "name": "易方达消费行业股票",
+      "type": "stock",
+      "holdings": 500,
+      "cost_price": 2.8,
+      "weight": 0.4,
+      "alert_threshold": 3.0,
+      "enabled": true
+    },
+    {
+      "code": "001838",
+      "name": "嘉实新能源新材料混合A",
+      "type": "hybrid",
+      "holdings": 800,
+      "cost_price": 1.5,
+      "weight": 0.3,
+      "alert_threshold": 2.5,
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "pushplus_token": "",
+    "morning_analysis_time": "09:00",
+    "evening_summary_time": "16:00",
+    "monitor_interval": 10,
+    "news_keywords": ["重仓股", "基金经理", "分红", "限购", "降准", "降息", "北向资金", "政策"]
+  },
+  "ai_settings": {
+    "trend_days": 5,
+    "news_weight": 0.4,
+    "trend_weight": 0.6,
+    "confidence_threshold": 0.6
+  }
+}
