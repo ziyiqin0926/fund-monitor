@@ -50,7 +50,7 @@ jobs:
     HOUR=$(date +%H)
     MINUTE=$(date +%M)
     if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
-      python fund_monitor.py --mode morning
+      python fund_monitor.py --mode query
     elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
       python fund_monitor.py --mode evening
     else
