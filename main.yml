@@ -45,25 +45,22 @@ jobs:
           cat config.json | grep pushplus_token
 
       # 步骤5：执行监控脚本（根据触发时间自动选择运行模式）
-      - name: Run fund monitor script
-        run: |
-          # 获取当前 UTC 时间的小时数
-          HOUR=$(date +%H)
-          MINUTE=$(date +%M)
-          
-          # 判断运行模式：9:00(UTC1) 跑早盘，16:00(UTC8) 跑复盘，其他时间跑监控
-          if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
-            python fund_monitor.py --mode morning
-          elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
-            python fund_monitor.py --mode evening
-          else
-            python fund_monitor.py --mode monitor
-          fi
-          
-          # 每日收盘后（UTC9=北京时间17:00）生成日报
-          if [ $HOUR -eq 9 ] && [ $MINUTE -eq 0 ]; then
-            python fund_monitor.py --mode daily
-          fi
-        env:
-          # 确保脚本能读取系统时区（可选，避免时间计算错误）
-          TZ: Asia/Shanghai
+- name: Run fund monitor
+  run: |
+    HOUR=$(date +%H)
+    MINUTE=$(date +%M)
+    if [ $HOUR -eq 1 ] && [ $MINUTE -eq 0 ]; then
+      python fund_monitor.py --mode morning
+    elif [ $HOUR -eq 8 ] && [ $MINUTE -eq 0 ]; then
+      python fund_monitor.py --mode evening
+    else
+      python fund_monitor.py --mode query  # 关键：把monitor改成query
+    fi
+  env:
+    pythonLocation: /opt/hostedtoolcache/Python/3.10.19/x64
+    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib/pkgconfig
+    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib
+    TZ: Asia/Shanghai
