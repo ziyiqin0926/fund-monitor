@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 基金AI盯盘系统 - GitHub Actions版
-功能：8点早盘预测、16点收盘复盘、非指定时间输出当日涨跌情况
+功能：6:00-9:30早盘预测、16:00-18:00收盘复盘、非指定时间输出当日涨跌情况
 """
 
 import argparse
@@ -322,11 +322,17 @@ class Config:
                 for key, value in self.DEFAULT_CONFIG.items():
                     if key not in config:
                         config[key] = value
-                # 兼容旧配置：如果存在旧的时间配置，转换为新的时间段配置
-                if 'morning_analysis_time' in config['settings']:
-                    del config['settings']['morning_analysis_time']
-                if 'evening_summary_time' in config['settings']:
-                    del config['settings']['evening_summary_time']
+                    elif isinstance(value, dict) and isinstance(config[key], dict):
+                        # 合并嵌套字典，确保新字段存在
+                        for sub_key, sub_value in value.items():
+                            if sub_key not in config[key]:
+                                config[key][sub_key] = sub_value
+                
+                # 清理旧配置键（如果存在）
+                if 'settings' in config:
+                    config['settings'].pop('morning_analysis_time', None)
+                    config['settings'].pop('evening_summary_time', None)
+                
                 return config
         except FileNotFoundError:
             # GitHub Actions环境：使用内存配置（不创建文件）
@@ -742,7 +748,7 @@ class AIFundAnalyzer:
         return trend_data
     
     def predict_today(self, fund):
-        """8点早盘预测：整合前5天数据+新闻政策，推算今日涨跌并给出持仓建议"""
+        """早盘预测：整合前5天数据+新闻政策，推算今日涨跌并给出持仓建议"""
         code = fund['code']
         days = self.config.get_ai_setting('trend_days', 5)
         
@@ -789,7 +795,7 @@ class AIFundAnalyzer:
         }
     
     def summarize_day(self, fund, morning_prediction):
-        """16点收盘复盘：分析今日涨跌，更新持仓建议"""
+        """收盘复盘：分析今日涨跌，更新持仓建议"""
         code = fund['code']
         
         # 获取今日实际数据
@@ -884,7 +890,7 @@ class AIFundAnalyzer:
         print(f"{'='*80}\n")
     
     def _generate_morning_advice(self, fund, prediction, score, trend_data, sentiment):
-        """8点早盘持仓建议"""
+        """早盘持仓建议"""
         holdings = fund.get('holdings', 0)
         cost = fund.get('cost_price', 0)
         advice = {
@@ -944,7 +950,7 @@ class AIFundAnalyzer:
         return advice
     
     def _generate_evening_advice(self, fund, morning_pred, actual_change, actual_direction):
-        """16点复盘持仓建议"""
+        """收盘复盘持仓建议"""
         advice = {
             'action': '维持',
             'reason': [],
@@ -1087,9 +1093,9 @@ class FundMonitor:
         print(f"{'='*50}\n")
         
         if mode == 'morning':
-            self.morning_analysis()  # 8点执行
+            self.morning_analysis()  # 早盘执行
         elif mode == 'evening':
-            self.evening_summary()   # 16点执行
+            self.evening_summary()   # 收盘执行
         elif mode == 'query':
             self.analyzer.get_daily_change_summary()  # 非指定时间查询涨跌
         elif mode == 'daemon':
@@ -1098,8 +1104,8 @@ class FundMonitor:
             print(f"未知模式: {mode}")
     
     def morning_analysis(self):
-        """8点早盘分析：整合前5天数据+新闻政策，预测今日涨跌，给出持仓建议"""
-        print("开始8点早盘AI分析（整合前5天数据+新闻政策）...")
+        """早盘分析：整合前5天数据+新闻政策，预测今日涨跌，给出持仓建议"""
+        print("开始早盘AI分析（整合前5天数据+新闻政策）...")
         
         funds = self.config.get_funds()
         if not funds:
@@ -1117,23 +1123,24 @@ class FundMonitor:
                 print(f"  建议: {pred['advice']['action']} - {pred['advice']['operations'][0]}")
         
         if not predictions:
-            self.notifier.send("⚠️  8点早盘分析失败", "无法获取基金数据")
+            self.notifier.send("⚠️  早盘分析失败", "无法获取基金数据")
             return
         
         html = self._build_morning_html(predictions)
-        title = f"🌅 8点AI早盘预测 | {datetime.now().strftime('%m-%d')} | 整合前5天数据+政策新闻"
+        current_time = datetime.now().strftime('%H:%M')
+        title = f"🌅 {current_time} AI早盘预测 | {datetime.now().strftime('%m-%d')} | 整合前5天数据+政策新闻"
         
         self.notifier.send(title, html)
         self._save_predictions(predictions)
-        print("8点早盘分析完成并已推送")
+        print(f"{current_time} 早盘分析完成并已推送")
     
     def evening_summary(self):
-        """16点收盘复盘：分析今日涨跌，更新持仓建议"""
-        print("开始16点收盘AI复盘...")
+        """收盘复盘：分析今日涨跌，更新持仓建议"""
+        print("开始收盘AI复盘...")
         
         morning_preds = self._load_predictions()
         if not morning_preds:
-            print("未找到8点早盘预测数据，跳过复盘")
+            print("未找到早盘预测数据，跳过复盘")
             return
         
         funds = self.config.get_funds()
@@ -1155,29 +1162,30 @@ class FundMonitor:
                 print(f"  复盘建议: {summary['updated_advice']['action']} - {summary['updated_advice']['operations'][0]}")
         
         if not summaries:
-            self.notifier.send("⚠️  16点收盘复盘失败", "无法获取数据")
+            self.notifier.send("⚠️  收盘复盘失败", "无法获取数据")
             return
         
         html = self._build_evening_html(summaries)
         correct_count = sum(1 for s in summaries if s['prediction_correct'])
         accuracy = correct_count / len(summaries) * 100 if summaries else 0
+        current_time = datetime.now().strftime('%H:%M')
         
-        title = f"🌙 16点AI收盘复盘 | 准确率{accuracy:.0f}% | 更新持仓建议"
+        title = f"🌙 {current_time} AI收盘复盘 | 准确率{accuracy:.0f}% | 更新持仓建议"
         self.notifier.send(title, html)
-        print("16点收盘复盘完成并已推送")
+        print(f"{current_time} 收盘复盘完成并已推送")
     
     def run_as_daemon(self):
-        """后台守护模式：仅保留8点早盘分析 + 16点收盘复盘"""
+        """后台守护模式：仅保留早盘分析 + 收盘复盘"""
         print("启动后台守护模式，按 Ctrl+C 退出")
-        print(f"定时任务：8点早盘分析，16点收盘复盘")
+        print(f"定时任务：早盘分析（6:00-9:30），收盘复盘（16:00-18:00）")
         
-        # 读取配置的定时时间（已默认设置为8点和16点）
-        morning_time = self.config.get_setting('morning_analysis_time', '08:00')
-        evening_time = self.config.get_setting('evening_summary_time', '16:00')
+        # 读取配置的定时时间
+        morning_start = self.config.get_setting('morning_analysis_start', '06:00')
+        evening_start = self.config.get_setting('evening_summary_start', '16:00')
         
-        # 设置定时任务（仅保留8点和16点任务）
-        schedule.every().day.at(morning_time).do(self.morning_analysis)
-        schedule.every().day.at(evening_time).do(self.evening_summary)
+        # 设置定时任务
+        schedule.every().day.at(morning_start).do(self.morning_analysis)
+        schedule.every().day.at(evening_start).do(self.evening_summary)
         
         # 循环执行定时任务
         try:
@@ -1190,8 +1198,9 @@ class FundMonitor:
     
     # HTML构建方法
     def _build_morning_html(self, predictions):
-        """构建8点早盘分析HTML"""
-        html = "<h2>🤖 8点AI早盘预测报告</h2>"
+        """构建早盘分析HTML"""
+        current_time = datetime.now().strftime('%H:%M')
+        html = f"<h2>🤖 {current_time} AI早盘预测报告</h2>"
         html += f"<p style='color:#666'>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>"
         html += "<p style='color:#333'><b>分析依据：前5天涨跌盘面 + 相关新闻政策</b></p><hr>"
         
@@ -1228,8 +1237,9 @@ class FundMonitor:
         return html
     
     def _build_evening_html(self, summaries):
-        """构建16点复盘HTML"""
-        html = "<h2>🌙 16点AI收盘复盘报告</h2>"
+        """构建复盘HTML"""
+        current_time = datetime.now().strftime('%H:%M')
+        html = f"<h2>🌙 {current_time} AI收盘复盘报告</h2>"
         html += f"<p style='color:#666'>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p><hr>"
         
         correct = sum(1 for s in summaries if s['prediction_correct'])
@@ -1281,7 +1291,7 @@ class FundMonitor:
         return html
     
     def _save_predictions(self, predictions):
-        """保存8点早盘预测数据"""
+        """保存早盘预测数据"""
         try:
             data = {
                 'date': datetime.now().strftime('%Y-%m-%d'),
@@ -1293,7 +1303,7 @@ class FundMonitor:
             print(f"保存预测失败: {e}")
     
     def _load_predictions(self):
-        """加载当日8点早盘预测数据"""
+        """加载当日早盘预测数据"""
         try:
             with open(self.prediction_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -1315,7 +1325,9 @@ def is_morning_time():
     morning_start = dt_time(6, 0)
     morning_end = dt_time(9, 30)
     
-    return morning_start <= current_time <= morning_end
+    result = morning_start <= current_time <= morning_end
+    print(f"[时间判断] 当前时间: {current_time.strftime('%H:%M')}, 早盘时段: {morning_start.strftime('%H:%M')}-{morning_end.strftime('%H:%M')}, 是否在早盘: {result}")
+    return result
 
 def is_evening_time():
     """判断当前是否在收盘复盘时间段（16:00-18:00）"""
@@ -1326,15 +1338,24 @@ def is_evening_time():
     evening_start = dt_time(16, 0)
     evening_end = dt_time(18, 0)
     
-    return evening_start <= current_time <= evening_end
+    result = evening_start <= current_time <= evening_end
+    print(f"[时间判断] 当前时间: {current_time.strftime('%H:%M')}, 复盘时段: {evening_start.strftime('%H:%M')}-{evening_end.strftime('%H:%M')}, 是否在复盘: {result}")
+    return result
 
 def get_current_mode():
     """根据当前时间判断应该执行的模式"""
+    print(f"\n{'='*50}")
+    print(f"🕐 当前系统时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'='*50}")
+    
     if is_morning_time():
+        print("📋 检测结果: 处于早盘时间段（6:00-9:30），执行早盘分析")
         return 'morning'
     elif is_evening_time():
+        print("📋 检测结果: 处于收盘复盘时间段（16:00-18:00），执行收盘复盘")
         return 'evening'
     else:
+        print("📋 检测结果: 非交易分析时段，输出当日涨跌情况")
         return 'query'
 
 
@@ -1357,16 +1378,6 @@ def main():
     # 自动模式：根据当前时间判断
     if args.mode == 'auto':
         detected_mode = get_current_mode()
-        print(f"🕐 当前时间: {datetime.now().strftime('%H:%M')}")
-        print(f"📋 自动检测模式: {detected_mode}")
-        
-        if detected_mode == 'morning':
-            print("⏰ 处于早盘时间段（6:00-9:30），执行早盘分析")
-        elif detected_mode == 'evening':
-            print("⏰ 处于收盘复盘时间段（16:00-18:00），执行收盘复盘")
-        else:
-            print("⏰ 非交易分析时段，输出当日涨跌情况")
-        
         args.mode = detected_mode
     
     # 运行其他模式
@@ -1374,7 +1385,7 @@ def main():
     
     # 检查PushPlus Token（仅在早盘/复盘模式提示）
     if args.mode in ['morning', 'evening'] and not monitor.config.pushplus_token:
-        print("提示: 未配置PushPlus Token，将不会发送推送通知")
+        print("⚠️  提示: 未配置PushPlus Token，将不会发送推送通知")
         print("获取Token: http://www.pushplus.plus → 登录后在「一对一推送」中获取")
     
     monitor.run(args.mode)
