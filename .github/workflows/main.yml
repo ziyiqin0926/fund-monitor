@@ -1,28 +1,24 @@
-name: 基金AI盯盘
-
-on:
-  schedule:
-    # 早盘时段：6:00-9:30 每15分钟运行一次
-    - cron: '*/15 6-12 * * 1-5'
-    # 复盘时段：16:00-18:00 每15分钟运行一次  
-    - cron: '*/15 16-17 * * 1-5'
-    # 其他时段：每小时运行一次（查询涨跌）
-    - cron: '0 10,11,12,13,14,15,19,20,21,22 * * 1-5'
-  workflow_dispatch:
-
+# 示例 workflow 配置（核心部分）
 jobs:
-  monitor:
+  run-fund-monitor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - run: 
+          python-version: '3.11'  # 匹配你的运行环境版本
+      
+      - name: Install dependencies  # 新增这一步安装依赖
+        run: |
           python -m pip install --upgrade pip
           pip install pytz requests beautifulsoup4  # 安装所需依赖
-      - name: 运行基金监控
+      
+      - name: Run fund monitor
         env:
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-          TZ: Asia/Shanghai  # 设置时区为北京时间
-        run: python fund_monitor.py --mode auto
+          TZ: Asia/Shanghai
+        run: |
+          python fund_monitor.py --mode auto
