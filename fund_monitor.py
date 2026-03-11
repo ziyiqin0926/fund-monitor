@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 基金AI盯盘系统 - GitHub Actions版（无schedule依赖）
-功能：6:00-9:30早盘预测、16:00-18:00收盘复盘、非指定时间输出当日涨跌情况
+功能：6:00-12:00早盘预测、16:00-18:00收盘复盘、非指定时间输出当日涨跌情况
 """
 
 import argparse
@@ -11,6 +11,9 @@ import os
 import sys
 import re
 import math
+import logging
+import pytz
+from functools import lru_cache
 # 移除: import schedule
 from datetime import datetime, timedelta, time as dt_time
 from urllib import request, parse
@@ -31,6 +34,22 @@ except ImportError:
     HAS_BS4 = False
     print("警告: 未安装 beautifulsoup4，HTML解析功能受限")
 
+# -------------------------- 日志配置 --------------------------
+# GitHub Actions环境：使用 /tmp 目录
+LOG_FILE = '/tmp/fund_monitor.log' if os.environ.get('GITHUB_ACTIONS') else 'fund_monitor.log'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# -------------------------- 全局时区配置 --------------------------
+# A股：Asia/Shanghai | 美股：America/New_York | 港股：Asia/Hong_Kong
+TARGET_TIMEZONE = pytz.timezone('Asia/Shanghai')
 
 # ==================== HTTP请求封装 ====================
 
@@ -53,7 +72,7 @@ class HttpClient:
                 self.cookie_jar.update(resp.cookies.get_dict())
                 return resp.text
             except Exception as e:
-                print(f"requests GET失败: {e}，尝试urllib")
+                logger.error(f"requests GET失败: {e}，尝试urllib")
                 return self._urllib_get(url, timeout)
         else:
             return self._urllib_get(url, timeout)
@@ -65,6 +84,7 @@ class HttpClient:
                 resp = requests.post(url, data=data, headers=self.headers, timeout=timeout)
                 return resp.text
             except Exception as e:
+                logger.error(f"requests POST失败: {e}，尝试urllib")
                 return self._urllib_post(url, data, timeout)
         else:
             return self._urllib_post(url, data, timeout)
@@ -76,7 +96,7 @@ class HttpClient:
             with request.urlopen(req, timeout=timeout) as response:
                 return response.read().decode('utf-8', errors='ignore')
         except Exception as e:
-            print(f"urllib GET失败: {e}")
+            logger.error(f"urllib GET失败: {e}")
             return ""
     
     def _urllib_post(self, url, data, timeout):
@@ -87,7 +107,7 @@ class HttpClient:
             with request.urlopen(req, timeout=timeout) as response:
                 return response.read().decode('utf-8', errors='ignore')
         except Exception as e:
-            print(f"urllib POST失败: {e}")
+            logger.error(f"urllib POST失败: {e}")
             return ""
 
 
@@ -292,8 +312,8 @@ class Config:
         ],
         "settings": {
             "pushplus_token": "",  # 请在这里填写你的PushPlus Token
-            "morning_analysis_start": "06:00",  # 早盘分析开始时间
-            "morning_analysis_end": "09:30",    # 早盘分析结束时间
+            "morning_analysis_start": "06:00",  # 早盘分析开始时间（调整为6点）
+            "morning_analysis_end": "12:00",    # 早盘分析结束时间（调整为12点）
             "evening_summary_start": "16:00",   # 收盘复盘开始时间
             "evening_summary_end": "18:00",     # 收盘复盘结束时间
             "news_keywords": ["重仓股", "基金经理", "分红", "限购", "降准", "降息", "IPO", "北向资金", "南向资金", "政策", "监管", "指数增强", "油气", "数字经济", "人工智能", "碳中和", "北证50", "科创50", "创业板"]
@@ -336,21 +356,21 @@ class Config:
         except FileNotFoundError:
             # GitHub Actions环境：使用内存配置（不创建文件）
             if os.environ.get('GITHUB_ACTIONS'):
-                print("GitHub Actions环境：使用默认内存配置")
+                logger.info("GitHub Actions环境：使用默认内存配置")
                 return self.DEFAULT_CONFIG.copy()
             # 本地运行：创建默认配置
             self.save(self.DEFAULT_CONFIG)
-            print(f"配置文件不存在，已创建默认配置: {self.config_path}")
+            logger.info(f"配置文件不存在，已创建默认配置: {self.config_path}")
             return self.DEFAULT_CONFIG.copy()
         except Exception as e:
-            print(f"加载配置失败: {e}，使用默认配置")
+            logger.error(f"加载配置失败: {e}，使用默认配置")
             return self.DEFAULT_CONFIG.copy()
     
     def save(self, data=None):
         """保存配置"""
         # GitHub Actions环境：不保存文件（只读文件系统）
         if os.environ.get('GITHUB_ACTIONS'):
-            print("GitHub Actions环境：跳过保存配置文件")
+            logger.info("GitHub Actions环境：跳过保存配置文件")
             return
         if data is None:
             data = self.data
@@ -358,7 +378,7 @@ class Config:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"保存配置失败: {e}")
+            logger.error(f"保存配置失败: {e}")
     
     def get_funds(self, enabled_only=True):
         funds = self.data.get('funds', [])
@@ -382,6 +402,7 @@ class FundDataFetcher:
         self.http = HttpClient()
         self.cache = {}
     
+    @lru_cache(maxsize=50)  # 缓存结果，避免重复调用
     def get_realtime_data(self, fund_code):
         """获取实时估值"""
         cache_key = f"rt_{fund_code}"
@@ -411,10 +432,11 @@ class FundDataFetcher:
                 self.cache[cache_key] = (datetime.now(), result)
                 return result
         except Exception as e:
-            print(f"获取实时数据失败 {fund_code}: {e}")
+            logger.error(f"获取实时数据失败 {fund_code}: {e}")
         
         return None
     
+    @lru_cache(maxsize=50)
     def get_history_data(self, fund_code, days=5):
         """获取前N天历史净值（固定获取前5天完整数据）"""
         try:
@@ -466,7 +488,7 @@ class FundDataFetcher:
             # 确保只返回前5天有效数据
             return history[:days] if len(history) >= days else history
         except Exception as e:
-            print(f"获取历史数据失败 {fund_code}: {e}")
+            logger.error(f"获取历史数据失败 {fund_code}: {e}")
             return []
 
 
@@ -513,7 +535,7 @@ class NewsAnalyzer:
                         all_news.append(n)
                         cache[n['id']] = datetime.now().isoformat()
             except Exception as e:
-                print(f"获取基金公告失败 {code}: {e}")
+                logger.error(f"获取基金公告失败 {code}: {e}")
         
         # 2. 获取政策相关新闻（新增）
         try:
@@ -523,7 +545,7 @@ class NewsAnalyzer:
                     all_news.append(n)
                     cache[n['id']] = datetime.now().isoformat()
         except Exception as e:
-            print(f"获取政策新闻失败: {e}")
+            logger.error(f"获取政策新闻失败: {e}")
         
         self.save_cache(cache)
         return all_news
@@ -552,7 +574,7 @@ class NewsAnalyzer:
                             'fund_code': 'policy'
                         })
         except Exception as e:
-            print(f"抓取政策新闻失败: {e}")
+            logger.error(f"抓取政策新闻失败: {e}")
         return news
     
     def _is_new_news(self, news, cache, cutoff_time):
@@ -612,7 +634,7 @@ class NewsAnalyzer:
                         'fund_code': fund_code
                     })
         except Exception as e:
-            print(f"获取公告失败: {e}")
+            logger.error(f"获取公告失败: {e}")
         
         return news
     
@@ -703,7 +725,7 @@ class AIFundAnalyzer:
         """分析前5天基金走势（固定5天）"""
         history = self.fetcher.get_history_data(fund_code, days)
         if len(history) < days:
-            print(f"警告: {fund_code} 前{days}天数据不足，仅获取到{len(history)}天")
+            logger.warning(f"{fund_code} 前{days}天数据不足，仅获取到{len(history)}天")
             return None
         
         # 整理前5天完整数据
@@ -751,7 +773,7 @@ class AIFundAnalyzer:
         code = fund['code']
         days = self.config.get_ai_setting('trend_days', 5)
         
-        print(f"正在分析 {fund['name']} 前{days}天数据...")
+        logger.info(f"正在分析 {fund['name']} 前{days}天数据...")
         
         # 1. 分析前5天走势
         trend_data = self.analyze_trend(code, days)
@@ -800,7 +822,7 @@ class AIFundAnalyzer:
         # 获取今日实际数据
         realtime = self.fetcher.get_realtime_data(code)
         if not realtime:
-            print(f"无法获取{fund['name']}今日实时数据")
+            logger.error(f"无法获取{fund['name']}今日实时数据")
             return None
         
         actual_change = realtime['change_percent']
@@ -829,6 +851,7 @@ class AIFundAnalyzer:
     
     def get_daily_change_summary(self):
         """获取所有基金当日涨跌汇总"""
+        logger.info("开始生成当日涨跌汇总")
         print(f"\n{'='*80}")
         print(f"📊 基金当日涨跌情况汇总 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*80}")
@@ -1039,7 +1062,7 @@ class PushNotifier:
     
     def send(self, title, content, template='html'):
         if not self.token:
-            print("提示: 未配置Pushplus Token，跳过推送")
+            logger.warning("未配置Pushplus Token，跳过推送")
             return False
         
         data = {
@@ -1058,13 +1081,13 @@ class PushNotifier:
                 result = {'code': 200} if '200' in str(resp) or 'success' in str(resp).lower() else {'code': 0}
             
             if result.get('code') == 200:
-                print(f"推送成功: {title}")
+                logger.info(f"推送成功: {title}")
                 return True
             else:
-                print(f"推送失败: {resp[:200]}")
+                logger.error(f"推送失败: {resp[:200]}")
                 return False
         except Exception as e:
-            print(f"推送请求失败: {e}")
+            logger.error(f"推送请求失败: {e}")
             return False
 
 
@@ -1086,6 +1109,7 @@ class FundMonitor:
     
     def run(self, mode):
         """运行指定模式"""
+        logger.info(f"基金AI盯盘系统启动 - 模式: {mode}")
         print(f"\n{'='*50}")
         print(f"基金AI盯盘系统 - 模式: {mode}")
         print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1101,24 +1125,30 @@ class FundMonitor:
             # 移除: self.run_as_daemon()
             print("守护模式已移除，请使用系统定时任务（如cron）触发")
         else:
+            logger.error(f"未知模式: {mode}")
             print(f"未知模式: {mode}")
     
     def morning_analysis(self):
         """早盘分析：整合前5天数据+新闻政策，预测今日涨跌，给出持仓建议"""
+        logger.info("开始早盘AI分析（整合前5天数据+新闻政策）...")
         print("开始早盘AI分析（整合前5天数据+新闻政策）...")
         
         funds = self.config.get_funds()
         if not funds:
+            logger.warning("没有启用的基金")
             print("没有启用的基金")
             return
         
         predictions = []
         
         for fund in funds:
+            logger.info(f"分析 {fund['name']} ({fund['code']}) 前5天数据...")
             print(f"分析 {fund['name']} ({fund['code']}) 前5天数据...")
             pred = self.analyzer.predict_today(fund)
             if pred:
                 predictions.append(pred)
+                logger.info(f"  预测: {pred['prediction']} (概率{pred['probability']}%)")
+                logger.info(f"  建议: {pred['advice']['action']} - {pred['advice']['operations'][0]}")
                 print(f"  预测: {pred['prediction']} (概率{pred['probability']}%)")
                 print(f"  建议: {pred['advice']['action']} - {pred['advice']['operations'][0]}")
         
@@ -1132,14 +1162,17 @@ class FundMonitor:
         
         self.notifier.send(title, html)
         self._save_predictions(predictions)
+        logger.info(f"{current_time} 早盘分析完成并已推送")
         print(f"{current_time} 早盘分析完成并已推送")
     
     def evening_summary(self):
         """收盘复盘：分析今日涨跌，更新持仓建议"""
+        logger.info("开始收盘AI复盘...")
         print("开始收盘AI复盘...")
         
         morning_preds = self._load_predictions()
         if not morning_preds:
+            logger.warning("未找到早盘预测数据，跳过复盘")
             print("未找到早盘预测数据，跳过复盘")
             return
         
@@ -1153,11 +1186,14 @@ class FundMonitor:
             if not morning_pred:
                 continue
             
+            logger.info(f"复盘 {fund['name']} ({code}) 今日表现...")
             print(f"复盘 {fund['name']} ({code}) 今日表现...")
             summary = self.analyzer.summarize_day(fund, morning_pred)
             if summary:
                 summaries.append(summary)
                 status = "✅准确" if summary['prediction_correct'] else "❌偏差"
+                logger.info(f"  预测{status}: 预计{morning_pred.get('prediction','?')} vs 实际{summary['actual_direction']}")
+                logger.info(f"  复盘建议: {summary['updated_advice']['action']} - {summary['updated_advice']['operations'][0]}")
                 print(f"  预测{status}: 预计{morning_pred.get('prediction','?')} vs 实际{summary['actual_direction']}")
                 print(f"  复盘建议: {summary['updated_advice']['action']} - {summary['updated_advice']['operations'][0]}")
         
@@ -1172,9 +1208,8 @@ class FundMonitor:
         
         title = f"🌙 {current_time} AI收盘复盘 | 准确率{accuracy:.0f}% | 更新持仓建议"
         self.notifier.send(title, html)
+        logger.info(f"{current_time} 收盘复盘完成并已推送")
         print(f"{current_time} 收盘复盘完成并已推送")
-    
-    # 移除: def run_as_daemon(self) 方法
     
     # HTML构建方法
     def _build_morning_html(self, predictions):
@@ -1279,8 +1314,9 @@ class FundMonitor:
             }
             with open(self.prediction_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, default=str, ensure_ascii=False, indent=2)
+            logger.info(f"早盘预测数据已保存至 {self.prediction_file}")
         except Exception as e:
-            print(f"保存预测失败: {e}")
+            logger.error(f"保存预测失败: {e}")
     
     def _load_predictions(self):
         """加载当日早盘预测数据"""
@@ -1289,52 +1325,57 @@ class FundMonitor:
                 data = json.load(f)
                 if data.get('date') == datetime.now().strftime('%Y-%m-%d'):
                     return data.get('predictions', {})
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"加载预测数据失败: {e}")
         return {}
 
 
-# ==================== GitHub Actions时间判断 ====================
+# ==================== 时间判断工具函数 ====================
+
+def get_current_time():
+    """获取指定时区的当前时间（返回time对象）"""
+    current_datetime = datetime.now(TARGET_TIMEZONE)
+    current_time = current_datetime.time()
+    logger.info(f"当前{TARGET_TIMEZONE.zone}时区时间：{current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+    return current_time
 
 def is_morning_time():
-    """判断当前是否在早盘时间段（6:00-9:30）"""
-    now = datetime.now()
-    current_time = now.time()
-    
-    # 早盘时间段：6:00 - 9:30
+    """判断当前是否在早盘时间段（6:00-12:00）"""
+    current_time = get_current_time()
     morning_start = dt_time(6, 0)
-    morning_end = dt_time(9, 30)
+    morning_end = dt_time(12, 0)
     
     result = morning_start <= current_time <= morning_end
-    print(f"[时间判断] 当前时间: {current_time.strftime('%H:%M')}, 早盘时段: {morning_start.strftime('%H:%M')}-{morning_end.strftime('%H:%M')}, 是否在早盘: {result}")
+    logger.info(f"[时间判断] 当前时间: {current_time.strftime('%H:%M')}, 早盘时段: 06:00-12:00, 是否在早盘: {result}")
     return result
 
 def is_evening_time():
     """判断当前是否在收盘复盘时间段（16:00-18:00）"""
-    now = datetime.now()
-    current_time = now.time()
-    
-    # 收盘复盘时间段：16:00 - 18:00
+    current_time = get_current_time()
     evening_start = dt_time(16, 0)
     evening_end = dt_time(18, 0)
     
     result = evening_start <= current_time <= evening_end
-    print(f"[时间判断] 当前时间: {current_time.strftime('%H:%M')}, 复盘时段: {evening_start.strftime('%H:%M')}-{evening_end.strftime('%H:%M')}, 是否在复盘: {result}")
+    logger.info(f"[时间判断] 当前时间: {current_time.strftime('%H:%M')}, 复盘时段: 16:00-18:00, 是否在复盘: {result}")
     return result
 
 def get_current_mode():
     """根据当前时间判断应该执行的模式"""
+    logger.info(f"开始自动判断运行模式")
     print(f"\n{'='*50}")
     print(f"🕐 当前系统时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}")
     
     if is_morning_time():
-        print("📋 检测结果: 处于早盘时间段（6:00-9:30），执行早盘分析")
+        logger.info("检测结果: 处于早盘时间段（6:00-12:00），执行早盘分析")
+        print("📋 检测结果: 处于早盘时间段（6:00-12:00），执行早盘分析")
         return 'morning'
     elif is_evening_time():
+        logger.info("检测结果: 处于收盘复盘时间段（16:00-18:00），执行收盘复盘")
         print("📋 检测结果: 处于收盘复盘时间段（16:00-18:00），执行收盘复盘")
         return 'evening'
     else:
+        logger.info("检测结果: 非交易分析时段，输出当日涨跌情况")
         print("📋 检测结果: 非交易分析时段，输出当日涨跌情况")
         return 'query'
 
@@ -1342,7 +1383,7 @@ def get_current_mode():
 # ==================== 入口 ====================
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - GitHub Actions版（6:00-9:30早盘+16:00-18:00复盘+其他时间查询涨跌）')
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - GitHub Actions版（6:00-12:00早盘+16:00-18:00复盘+其他时间查询涨跌）')
     parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'query', 'auto'],
                        default='auto', help='运行模式: init(初始化配置), morning(早盘分析), evening(收盘复盘), query(查询当日涨跌), auto(自动根据时间判断)')
     args = parser.parse_args()
@@ -1351,6 +1392,7 @@ def main():
     if args.mode == 'init':
         config = Config()
         config.save()
+        logger.info("已创建默认配置文件 config.json")
         print("✅ 已创建默认配置文件 config.json")
         print("请编辑 config.json 添加你的基金持仓信息和PushPlus Token")
         return
@@ -1365,6 +1407,7 @@ def main():
     
     # 检查PushPlus Token（仅在早盘/复盘模式提示）
     if args.mode in ['morning', 'evening'] and not monitor.config.pushplus_token:
+        logger.warning("未配置PushPlus Token，将不会发送推送通知")
         print("⚠️  提示: 未配置PushPlus Token，将不会发送推送通知")
         print("获取Token: http://www.pushplus.plus → 登录后在「一对一推送」中获取")
     
