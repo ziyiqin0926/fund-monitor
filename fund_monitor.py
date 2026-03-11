@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-基金AI盯盘系统 - GitHub Actions版
+基金AI盯盘系统 - GitHub Actions版（无schedule依赖）
 功能：6:00-9:30早盘预测、16:00-18:00收盘复盘、非指定时间输出当日涨跌情况
 """
 
@@ -11,8 +11,7 @@ import os
 import sys
 import re
 import math
-import time
-import schedule
+# 移除: import schedule
 from datetime import datetime, timedelta, time as dt_time
 from urllib import request, parse
 from urllib.error import URLError, HTTPError
@@ -1099,7 +1098,8 @@ class FundMonitor:
         elif mode == 'query':
             self.analyzer.get_daily_change_summary()  # 非指定时间查询涨跌
         elif mode == 'daemon':
-            self.run_as_daemon()
+            # 移除: self.run_as_daemon()
+            print("守护模式已移除，请使用系统定时任务（如cron）触发")
         else:
             print(f"未知模式: {mode}")
     
@@ -1174,27 +1174,7 @@ class FundMonitor:
         self.notifier.send(title, html)
         print(f"{current_time} 收盘复盘完成并已推送")
     
-    def run_as_daemon(self):
-        """后台守护模式：仅保留早盘分析 + 收盘复盘"""
-        print("启动后台守护模式，按 Ctrl+C 退出")
-        print(f"定时任务：早盘分析（6:00-9:30），收盘复盘（16:00-18:00）")
-        
-        # 读取配置的定时时间
-        morning_start = self.config.get_setting('morning_analysis_start', '06:00')
-        evening_start = self.config.get_setting('evening_summary_start', '16:00')
-        
-        # 设置定时任务
-        schedule.every().day.at(morning_start).do(self.morning_analysis)
-        schedule.every().day.at(evening_start).do(self.evening_summary)
-        
-        # 循环执行定时任务
-        try:
-            while True:
-                schedule.run_pending()
-                time.sleep(60)  # 每分钟检查一次
-        except KeyboardInterrupt:
-            print("\n程序已退出")
-            sys.exit(0)
+    # 移除: def run_as_daemon(self) 方法
     
     # HTML构建方法
     def _build_morning_html(self, predictions):
@@ -1363,8 +1343,8 @@ def get_current_mode():
 
 def main():
     parser = argparse.ArgumentParser(description='基金AI盯盘系统 - GitHub Actions版（6:00-9:30早盘+16:00-18:00复盘+其他时间查询涨跌）')
-    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'daemon', 'query', 'auto'],
-                       default='auto', help='运行模式: init(初始化配置), morning(早盘分析), evening(收盘复盘), query(查询当日涨跌), daemon(后台守护), auto(自动根据时间判断)')
+    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'query', 'auto'],
+                       default='auto', help='运行模式: init(初始化配置), morning(早盘分析), evening(收盘复盘), query(查询当日涨跌), auto(自动根据时间判断)')
     args = parser.parse_args()
     
     # 初始化配置
