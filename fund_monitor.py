@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-基金AI盯盘系统 - 本地部署版
+基金AI盯盘系统 - GitHub Actions版
 功能：8点早盘预测、16点收盘复盘、非指定时间输出当日涨跌情况
 """
 
@@ -293,8 +293,10 @@ class Config:
         ],
         "settings": {
             "pushplus_token": "",  # 请在这里填写你的PushPlus Token
-            "morning_analysis_time": "08:00",  # 8点执行早盘分析
-            "evening_summary_time": "16:00",    # 16点执行收盘复盘
+            "morning_analysis_start": "06:00",  # 早盘分析开始时间
+            "morning_analysis_end": "09:30",    # 早盘分析结束时间
+            "evening_summary_start": "16:00",   # 收盘复盘开始时间
+            "evening_summary_end": "18:00",     # 收盘复盘结束时间
             "news_keywords": ["重仓股", "基金经理", "分红", "限购", "降准", "降息", "IPO", "北向资金", "南向资金", "政策", "监管", "指数增强", "油气", "数字经济", "人工智能", "碳中和", "北证50", "科创50", "创业板"]
         },
         "ai_settings": {
@@ -308,8 +310,8 @@ class Config:
     def __init__(self, config_path='config.json'):
         self.config_path = config_path
         self.data = self.load()
-        # 本地运行：优先读取配置文件中的token，而非环境变量
-        self.pushplus_token = self.data['settings']['pushplus_token']
+        # GitHub Actions环境：优先读取环境变量，其次配置文件
+        self.pushplus_token = os.environ.get('PUSHPLUS_TOKEN', self.data['settings']['pushplus_token'])
     
     def load(self):
         """加载配置"""
@@ -320,9 +322,18 @@ class Config:
                 for key, value in self.DEFAULT_CONFIG.items():
                     if key not in config:
                         config[key] = value
+                # 兼容旧配置：如果存在旧的时间配置，转换为新的时间段配置
+                if 'morning_analysis_time' in config['settings']:
+                    del config['settings']['morning_analysis_time']
+                if 'evening_summary_time' in config['settings']:
+                    del config['settings']['evening_summary_time']
                 return config
         except FileNotFoundError:
-            # 创建默认配置（本地路径）
+            # GitHub Actions环境：使用内存配置（不创建文件）
+            if os.environ.get('GITHUB_ACTIONS'):
+                print("GitHub Actions环境：使用默认内存配置")
+                return self.DEFAULT_CONFIG.copy()
+            # 本地运行：创建默认配置
             self.save(self.DEFAULT_CONFIG)
             print(f"配置文件不存在，已创建默认配置: {self.config_path}")
             return self.DEFAULT_CONFIG.copy()
@@ -332,10 +343,13 @@ class Config:
     
     def save(self, data=None):
         """保存配置"""
+        # GitHub Actions环境：不保存文件（只读文件系统）
+        if os.environ.get('GITHUB_ACTIONS'):
+            print("GitHub Actions环境：跳过保存配置文件")
+            return
         if data is None:
             data = self.data
         try:
-            # 确保配置文件保存在当前目录
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -459,8 +473,11 @@ class NewsAnalyzer:
     def __init__(self, config):
         self.config = config
         self.http = HttpClient()
-        # 本地缓存路径调整（Windows兼容）
-        self.cache_file = os.path.join(os.getcwd(), 'fund_news_cache.json')
+        # GitHub Actions环境：使用 /tmp 目录
+        if os.environ.get('GITHUB_ACTIONS'):
+            self.cache_file = '/tmp/fund_news_cache.json'
+        else:
+            self.cache_file = os.path.join(os.getcwd(), 'fund_news_cache.json')
     
     def load_cache(self):
         try:
@@ -1056,8 +1073,11 @@ class FundMonitor:
         self.fetcher = FundDataFetcher()
         self.analyzer = AIFundAnalyzer(self.config)
         self.notifier = PushNotifier(self.config.pushplus_token)
-        # 本地预测数据保存路径
-        self.prediction_file = os.path.join(os.getcwd(), 'fund_predictions.json')
+        # GitHub Actions环境：使用 /tmp 目录
+        if os.environ.get('GITHUB_ACTIONS'):
+            self.prediction_file = '/tmp/fund_predictions.json'
+        else:
+            self.prediction_file = os.path.join(os.getcwd(), 'fund_predictions.json')
     
     def run(self, mode):
         """运行指定模式"""
@@ -1284,12 +1304,46 @@ class FundMonitor:
         return {}
 
 
+# ==================== GitHub Actions时间判断 ====================
+
+def is_morning_time():
+    """判断当前是否在早盘时间段（6:00-9:30）"""
+    now = datetime.now()
+    current_time = now.time()
+    
+    # 早盘时间段：6:00 - 9:30
+    morning_start = dt_time(6, 0)
+    morning_end = dt_time(9, 30)
+    
+    return morning_start <= current_time <= morning_end
+
+def is_evening_time():
+    """判断当前是否在收盘复盘时间段（16:00-18:00）"""
+    now = datetime.now()
+    current_time = now.time()
+    
+    # 收盘复盘时间段：16:00 - 18:00
+    evening_start = dt_time(16, 0)
+    evening_end = dt_time(18, 0)
+    
+    return evening_start <= current_time <= evening_end
+
+def get_current_mode():
+    """根据当前时间判断应该执行的模式"""
+    if is_morning_time():
+        return 'morning'
+    elif is_evening_time():
+        return 'evening'
+    else:
+        return 'query'
+
+
 # ==================== 入口 ====================
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 本地版（8点早盘+16点复盘+非指定时间查询涨跌）')
-    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'daemon', 'query'],
-                       default='query', help='运行模式: init(初始化配置), morning(8点早盘分析), evening(16点收盘复盘), query(查询当日涨跌), daemon(后台守护)')
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - GitHub Actions版（6:00-9:30早盘+16:00-18:00复盘+其他时间查询涨跌）')
+    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'daemon', 'query', 'auto'],
+                       default='auto', help='运行模式: init(初始化配置), morning(早盘分析), evening(收盘复盘), query(查询当日涨跌), daemon(后台守护), auto(自动根据时间判断)')
     args = parser.parse_args()
     
     # 初始化配置
@@ -1299,6 +1353,21 @@ def main():
         print("✅ 已创建默认配置文件 config.json")
         print("请编辑 config.json 添加你的基金持仓信息和PushPlus Token")
         return
+    
+    # 自动模式：根据当前时间判断
+    if args.mode == 'auto':
+        detected_mode = get_current_mode()
+        print(f"🕐 当前时间: {datetime.now().strftime('%H:%M')}")
+        print(f"📋 自动检测模式: {detected_mode}")
+        
+        if detected_mode == 'morning':
+            print("⏰ 处于早盘时间段（6:00-9:30），执行早盘分析")
+        elif detected_mode == 'evening':
+            print("⏰ 处于收盘复盘时间段（16:00-18:00），执行收盘复盘")
+        else:
+            print("⏰ 非交易分析时段，输出当日涨跌情况")
+        
+        args.mode = detected_mode
     
     # 运行其他模式
     monitor = FundMonitor()
