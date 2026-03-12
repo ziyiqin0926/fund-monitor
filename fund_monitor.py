@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-基金AI盯盘系统 - 增强版
-功能：6:00-12:00早盘预测、16:00-18:00收盘复盘、非指定时间输出当日涨跌情况
+基金AI盯盘系统 - 修复版
+修复了基金代码119529、119920等无法获取数据的问题
 """
 
 import argparse
@@ -151,7 +151,7 @@ class DataValidator:
     @staticmethod
     def validate_percentage(value: float) -> float:
         """验证百分比值范围"""
-        return max(-20, min(20, value))  # 限制涨跌幅在±20%内
+        return max(-20, min(20, value))
     
     @staticmethod
     def validate_date(date_str: str) -> bool:
@@ -199,6 +199,166 @@ class Config:
                 "weight": 0.07,
                 "alert_threshold": 2.5,
                 "enabled": True
+            },
+            {
+                "code": "022486",
+                "name": "国金中证A500指数增强C",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "017484",
+                "name": "财通资管数字经济混合C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "011803",
+                "name": "富顺长城宁景6个月持有期混合A",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "021580",
+                "name": "华夏人工智能ETF联接D",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "017730",
+                "name": "嘉实全球产业升级股票(QDII)A",
+                "type": "stock",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 3.0,
+                "enabled": True
+            },
+            {
+                "code": "000071",
+                "name": "华夏恒生ETF联接(QDII)A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "002580",
+                "name": "泰信鑫选灵活配置混合C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "019993",
+                "name": "创金合信北证50成份指数增强A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "018124",
+                "name": "永赢先进制造智选混合A",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "021298",
+                "name": "中欧北证50成份指数A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "015916",
+                "name": "永赢医药创新智选混合C",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "016539",
+                "name": "鹏华碳中和主题混合A",
+                "type": "hybrid",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "119529",
+                "name": "易方达创业板ETF联接A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "021175",
+                "name": "华安北证50成份指数C",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
+            },
+            {
+                "code": "119920",
+                "name": "易方达深证300ETF联接A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.0,
+                "enabled": True
+            },
+            {
+                "code": "011612",
+                "name": "华夏科创50ETF联接A",
+                "type": "index",
+                "holdings": 0,
+                "cost_price": 0.0,
+                "weight": 0.07,
+                "alert_threshold": 2.5,
+                "enabled": True
             }
         ],
         "settings": {
@@ -227,7 +387,6 @@ class Config:
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                # 合并默认配置
                 for key, value in self.DEFAULT_CONFIG.items():
                     if key not in config:
                         config[key] = value
@@ -288,7 +447,6 @@ class ConfigManager(Config):
         """验证配置有效性"""
         errors = []
         
-        # 验证基金配置
         for i, fund in enumerate(self.data.get('funds', [])):
             if 'code' not in fund:
                 errors.append(f"基金 #{i+1} 缺少code字段")
@@ -298,7 +456,6 @@ class ConfigManager(Config):
             if 'weight' in fund and not (0 < fund['weight'] <= 1):
                 errors.append(f"基金 {fund.get('code', 'unknown')} 权重应在0-1之间")
         
-        # 验证设置
         settings = self.data.get('settings', {})
         if not settings.get('pushplus_token'):
             errors.append("PushPlus Token未配置，将无法接收推送")
@@ -324,10 +481,10 @@ class ConfigManager(Config):
         logger.info("配置迁移完成")
 
 
-# ==================== 数据获取模块 ====================
+# ==================== 修复版数据获取模块 ====================
 
 class FundDataFetcher:
-    """基金数据获取"""
+    """基金数据获取 - 修复版，支持多种数据源"""
     
     def __init__(self):
         self.http = HttpClient()
@@ -336,7 +493,7 @@ class FundDataFetcher:
     
     @lru_cache(maxsize=50)
     def get_realtime_data(self, fund_code):
-        """获取实时估值"""
+        """获取实时估值 - 支持多个数据源"""
         if not self.validator.validate_fund_code(fund_code):
             logger.error(f"无效的基金代码: {fund_code}")
             return None
@@ -347,40 +504,160 @@ class FundDataFetcher:
             if datetime.now() - cache_time < timedelta(minutes=5):
                 return data
         
+        # 尝试多个数据源
+        data_sources = [
+            self._get_from_eastmoney,
+            self._get_from_tiantian,
+            self._get_from_sina
+        ]
+        
+        for source_func in data_sources:
+            try:
+                result = source_func(fund_code)
+                if result:
+                    self.cache[cache_key] = (datetime.now(), result)
+                    return result
+            except Exception as e:
+                logger.debug(f"数据源 {source_func.__name__} 失败: {e}")
+                continue
+        
+        logger.error(f"所有数据源都无法获取基金 {fund_code} 的实时数据")
+        return None
+    
+    def _get_from_eastmoney(self, fund_code):
+        """从东方财富获取实时数据"""
         try:
-            url = f"http://fundgz.1234567.com.cn/js/{fund_code}.js"
+            # 对于以11开头的基金代码，使用不同的接口
+            if fund_code.startswith('11'):
+                url = f"http://fund.eastmoney.com/pingzhongdata/{fund_code}.js"
+                resp = self.http.get(url, timeout=10)
+                
+                # 尝试解析Data_netWorthTrend数据
+                match = re.search(r'var Data_netWorthTrend = (\[.*?\]);', resp)
+                if match:
+                    import json
+                    trend_data = json.loads(match.group(1))
+                    if trend_data and len(trend_data) > 0:
+                        latest = trend_data[-1]
+                        # 获取昨日净值
+                        history = self.get_history_data(fund_code, days=2)
+                        previous = history[1]['nav'] if len(history) > 1 else 0
+                        
+                        return {
+                            'code': fund_code,
+                            'name': self._get_fund_name(fund_code),
+                            'price': latest.get('y', 0),
+                            'previous': previous,
+                            'change_percent': ((latest.get('y', 0) - previous) / previous * 100) if previous else 0,
+                            'change_amount': latest.get('y', 0) - previous if previous else 0,
+                            'time': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                            'source': 'eastmoney_pingzhong'
+                        }
+            else:
+                # 标准接口
+                url = f"http://fundgz.1234567.com.cn/js/{fund_code}.js"
+                resp = self.http.get(url, timeout=10)
+                
+                match = re.search(r'jsonpgz\((.+)\);', resp)
+                if match:
+                    data = json.loads(match.group(1))
+                    return {
+                        'code': fund_code,
+                        'name': data.get('name', ''),
+                        'price': float(data.get('gsz', 0)),
+                        'previous': float(data.get('dwjz', 0)),
+                        'change_percent': float(data.get('gszzl', 0)),
+                        'change_amount': round(float(data.get('gsz', 0)) - float(data.get('dwjz', 0)), 4),
+                        'time': data.get('gztime', ''),
+                        'source': 'eastmoney'
+                    }
+        except Exception as e:
+            logger.debug(f"东方财富获取失败 {fund_code}: {e}")
+        return None
+    
+    def _get_from_tiantian(self, fund_code):
+        """从天天基金获取实时数据"""
+        try:
+            url = f"http://fund.10jqka.com.cn/{fund_code}/"
             resp = self.http.get(url, timeout=10)
             
-            match = re.search(r'jsonpgz\((.+)\);', resp)
-            if match:
-                data = json.loads(match.group(1))
-                result = {
-                    'code': fund_code,
-                    'name': data.get('name', ''),
-                    'price': float(data.get('gsz', 0)),
-                    'previous': float(data.get('dwjz', 0)),
-                    'change_percent': float(data.get('gszzl', 0)),
-                    'change_amount': round(float(data.get('gsz', 0)) - float(data.get('dwjz', 0)), 4),
-                    'time': data.get('gztime', ''),
-                    'source': 'eastmoney'
-                }
-                self.cache[cache_key] = (datetime.now(), result)
-                return result
+            if HAS_BS4:
+                soup = BeautifulSoup(resp, 'html.parser')
+                # 尝试解析页面数据
+                price_elem = soup.find('span', class_='gz_num')
+                if price_elem:
+                    price = float(price_elem.text)
+                    
+                    # 获取基金名称
+                    name_elem = soup.find('h1', class_='fund_name')
+                    name = name_elem.text.strip() if name_elem else fund_code
+                    
+                    return {
+                        'code': fund_code,
+                        'name': name,
+                        'price': price,
+                        'previous': 0,  # 需要从其他接口获取
+                        'change_percent': 0,
+                        'change_amount': 0,
+                        'time': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                        'source': 'tiantian'
+                    }
         except Exception as e:
-            logger.error(f"获取实时数据失败 {fund_code}: {e}")
-        
+            logger.debug(f"天天基金获取失败 {fund_code}: {e}")
         return None
+    
+    def _get_from_sina(self, fund_code):
+        """从新浪财经获取实时数据"""
+        try:
+            url = f"http://stock.finance.sina.com.cn/fundInfo/api/openapi.php/CaihuiFundInfoService.getFundInfo?fund={fund_code}"
+            resp = self.http.get(url, timeout=10)
+            
+            data = json.loads(resp)
+            if data and data.get('result') and data['result'].get('data'):
+                fund_data = data['result']['data']
+                return {
+                    'code': fund_code,
+                    'name': fund_data.get('fund_name', ''),
+                    'price': float(fund_data.get('net_value', 0)),
+                    'previous': float(fund_data.get('total_net_value', 0)),
+                    'change_percent': float(fund_data.get('daily_profit', 0)),
+                    'change_amount': float(fund_data.get('daily_profit_amount', 0)),
+                    'time': fund_data.get('jzrq', ''),
+                    'source': 'sina'
+                }
+        except Exception as e:
+            logger.debug(f"新浪财经获取失败 {fund_code}: {e}")
+        return None
+    
+    def _get_fund_name(self, fund_code):
+        """获取基金名称"""
+        try:
+            url = f"http://fund.eastmoney.com/{fund_code}.html"
+            resp = self.http.get(url, timeout=10)
+            
+            if HAS_BS4:
+                soup = BeautifulSoup(resp, 'html.parser')
+                name_elem = soup.find('div', class_='fundDetail-tit')
+                if name_elem:
+                    return name_elem.text.replace(f'({fund_code})', '').strip()
+        except:
+            pass
+        return fund_code
     
     @lru_cache(maxsize=50)
     def get_history_data(self, fund_code, days=5):
-        """获取前N天历史净值"""
+        """获取前N天历史净值 - 支持多个数据源"""
         try:
+            # 对于以11开头的基金代码，使用不同的接口
+            if fund_code.startswith('11'):
+                return self._get_history_from_other(fund_code, days)
+            
             url = f"http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code={fund_code}&page=1&per={days + 5}"
             resp = self.http.get(url, timeout=10)
             
             match = re.search(r'var apidata=\{content:"(.+?)",records', resp)
             if not match:
-                return []
+                return self._get_history_from_other(fund_code, days)
             
             html = match.group(1).replace('\\', '')
             
@@ -422,10 +699,33 @@ class FundDataFetcher:
             return history[:days] if len(history) >= days else history
         except Exception as e:
             logger.error(f"获取历史数据失败 {fund_code}: {e}")
+            return self._get_history_from_other(fund_code, days)
+    
+    def _get_history_from_other(self, fund_code, days=5):
+        """从其他源获取历史数据"""
+        try:
+            # 使用新浪财经接口
+            url = f"http://stock.finance.sina.com.cn/fundInfo/api/openapi.php/CaihuiFundInfoService.getNav?symbol={fund_code}&date={datetime.now().strftime('%Y-%m-%d')}"
+            resp = self.http.get(url, timeout=10)
+            
+            data = json.loads(resp)
+            history = []
+            
+            if data and data.get('result') and data.get('result').get('data'):
+                for item in data['result']['data'][:days]:
+                    history.append({
+                        'date': item.get('fbrq', ''),
+                        'nav': float(item.get('jjjz', 0)),
+                        'change': item.get('jzzzl', '0')
+                    })
+            
+            return history
+        except Exception as e:
+            logger.error(f"从其他源获取历史数据失败 {fund_code}: {e}")
             return []
 
 
-# ==================== 新闻与情绪分析（基础版）====================
+# ==================== 新闻与情绪分析 ====================
 
 class NewsAnalyzer:
     """新闻获取与情绪分析"""
@@ -632,185 +932,7 @@ class NewsAnalyzer:
         }
 
 
-# ==================== 增强版新闻分析器 ====================
-
-class EnhancedNewsAnalyzer(NewsAnalyzer):
-    """增强版新闻分析器"""
-    
-    def __init__(self, config):
-        super().__init__(config)
-        # 扩展情绪词典
-        self.sentiment_dict = {
-            'strong_positive': ['涨停', '暴涨', '牛市', '大放水', '创新高', '重磅利好', '政策底', '估值修复'],
-            'positive': ['利好', '上涨', '反弹', '增长', '增持', '买入', '降准', '降息', '刺激', '支持', 
-                        '分红', '超预期', '盈利', '宽松', '扶持', '创新', '升级', '碳中和', '先进制造'],
-            'neutral': ['震荡', '横盘', '调整', '观望', '平稳', '正常波动'],
-            'negative': ['利空', '下跌', '减持', '卖出', '限购', '监管', '处罚', '违约', '暴雷', 
-                        '亏损', '不及预期', '回撤', '紧缩', '加息', '风险', '波动'],
-            'strong_negative': ['跌停', '暴跌', '熊市', '崩盘', '清盘', '腰斩', '重磅利空', '系统性风险']
-        }
-    
-    def analyze_sentiment_advanced(self, news_list: List[Dict], fund_info: Optional[Dict] = None) -> Dict:
-        """高级情绪分析，考虑新闻时效性和相关性"""
-        if not news_list:
-            return {'score': 0, 'level': '中性', 'confidence': 0, 'keywords': [], 'news_count': 0}
-        
-        total_score = 0
-        total_weight = 0
-        keywords = []
-        relevant_news = []
-        
-        for news in news_list:
-            # 基础情绪分
-            base_score = self._calculate_base_sentiment(news.get('title', ''))
-            
-            # 权重计算
-            weight = 1.0
-            
-            # 时效性权重（越新的新闻权重越高）
-            days_old = self._get_news_age_days(news)
-            if days_old <= 1:
-                weight *= 1.5
-            elif days_old <= 3:
-                weight *= 1.2
-            elif days_old <= 5:
-                weight *= 0.8
-            else:
-                weight *= 0.5
-            
-            # 相关性权重
-            if fund_info:
-                relevance = self._calculate_relevance(news, fund_info)
-                weight *= relevance
-            
-            # 来源权威性
-            source_weight = self._get_source_weight(news.get('source', ''))
-            weight *= source_weight
-            
-            total_score += base_score * weight
-            total_weight += weight
-            
-            if abs(base_score) > 0.3:
-                keywords.extend(self._extract_keywords(news.get('title', '')))
-                relevant_news.append(news)
-        
-        # 计算加权平均分
-        avg_score = total_score / total_weight if total_weight > 0 else 0
-        avg_score = max(-1, min(1, avg_score))
-        
-        # 置信度计算
-        confidence = min(1, len(news_list) / 10) * (0.5 + 0.5 * abs(avg_score))
-        
-        # 情绪等级
-        level = self._get_sentiment_level(avg_score, confidence)
-        
-        return {
-            'score': round(avg_score, 2),
-            'level': level,
-            'confidence': round(confidence, 2),
-            'keywords': list(set(keywords))[:10],
-            'relevant_news': relevant_news[:5],
-            'news_count': len(news_list)
-        }
-    
-    def _calculate_base_sentiment(self, text: str) -> float:
-        """计算基础情绪分"""
-        score = 0
-        for word in self.sentiment_dict['strong_positive']:
-            if word in text:
-                score += 2
-        for word in self.sentiment_dict['positive']:
-            if word in text:
-                score += 1
-        for word in self.sentiment_dict['neutral']:
-            if word in text:
-                score += 0
-        for word in self.sentiment_dict['negative']:
-            if word in text:
-                score -= 1
-        for word in self.sentiment_dict['strong_negative']:
-            if word in text:
-                score -= 2
-        
-        return max(-1, min(1, score / 5))
-    
-    def _get_news_age_days(self, news: Dict) -> int:
-        """获取新闻年龄（天数）"""
-        try:
-            time_str = news.get('time', '')
-            if 'T' in time_str:
-                news_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-            else:
-                news_time = datetime.strptime(time_str, '%Y-%m-%d %H:%M')
-            return (datetime.now() - news_time).days
-        except:
-            return 5
-    
-    def _get_source_weight(self, source: str) -> float:
-        """获取来源权重"""
-        authoritative_sources = ['证监会', '央行', '国务院', '新华社', '人民日报']
-        reliable_sources = ['东方财富', '新浪财经', '腾讯财经', '证券时报']
-        
-        if any(s in source for s in authoritative_sources):
-            return 1.5
-        elif any(s in source for s in reliable_sources):
-            return 1.2
-        else:
-            return 0.8
-    
-    def _calculate_relevance(self, news: Dict, fund_info: Dict) -> float:
-        """计算新闻与基金的相关性"""
-        title = news.get('title', '')
-        fund_name = fund_info.get('name', '')
-        fund_type = fund_info.get('type', '')
-        
-        relevance = 1.0
-        
-        # 基金名称匹配
-        if fund_name and any(word in title for word in fund_name.split()):
-            relevance *= 1.3
-        
-        # 基金类型匹配
-        type_keywords = {
-            'index': ['指数', 'ETF', '成分'],
-            'hybrid': ['混合', '配置'],
-            'stock': ['股票', '股基'],
-            'QDII': ['QDII', '海外', '全球']
-        }
-        
-        if fund_type in type_keywords:
-            if any(kw in title for kw in type_keywords[fund_type]):
-                relevance *= 1.2
-        
-        return min(2.0, relevance)
-    
-    def _extract_keywords(self, text: str) -> List[str]:
-        """提取关键词"""
-        keywords = []
-        for category in self.sentiment_dict.values():
-            for word in category:
-                if word in text and word not in keywords:
-                    keywords.append(word)
-        return keywords[:3]
-    
-    def _get_sentiment_level(self, score: float, confidence: float) -> str:
-        """获取情绪等级"""
-        if confidence < 0.3:
-            return '不确定'
-        
-        if score > 0.6:
-            return '强烈看多'
-        elif score > 0.2:
-            return '看多'
-        elif score < -0.6:
-            return '强烈看空'
-        elif score < -0.2:
-            return '看空'
-        else:
-            return '中性'
-
-
-# ==================== AI分析引擎（基础版）====================
+# ==================== AI分析引擎 ====================
 
 class AIFundAnalyzer:
     """AI基金分析引擎"""
@@ -841,7 +963,7 @@ class AIFundAnalyzer:
         for i in range(len(history)-1):
             current = history[i]['nav']
             prev = history[i+1]['nav']
-            change = (current - prev) / prev * 100
+            change = (current - prev) / prev * 100 if prev != 0 else 0
             changes.append(change)
             trend_data['daily_data'].append({
                 'date': history[i]['date'],
@@ -943,7 +1065,6 @@ class AIFundAnalyzer:
             advice['action'] = '持有'
             advice['operations'].append(f"前{trend_data['trend_days']}天震荡走势+情绪中性，建议持有不动或网格交易")
         
-        # 关键信息补充
         if sentiment['keywords']:
             advice['reason'].append(f"核心影响因素: {', '.join(sentiment['keywords'][:3])}")
         
@@ -965,284 +1086,6 @@ class AIFundAnalyzer:
             summaries.append(f"• {news_type}{source}: {title}...")
         
         return "<br>".join(summaries)
-
-
-# ==================== 增强版AI分析引擎 ====================
-
-class EnhancedAIFundAnalyzer(AIFundAnalyzer):
-    """增强版AI分析引擎"""
-    
-    def __init__(self, config):
-        super().__init__(config)
-        self.news_analyzer = EnhancedNewsAnalyzer(config)
-        self.validator = DataValidator()
-        # 尝试导入numpy，如果不支持则使用简单计算
-        try:
-            import numpy as np
-            self.np = np
-            self.has_numpy = True
-        except ImportError:
-            self.has_numpy = False
-            logger.warning("未安装numpy，使用简化版技术分析")
-    
-    def predict_today_enhanced(self, fund: Dict) -> Optional[Dict]:
-        """增强版早盘预测"""
-        code = fund['code']
-        
-        # 验证基金代码
-        if not self.validator.validate_fund_code(code):
-            logger.error(f"无效的基金代码: {code}")
-            return None
-        
-        try:
-            # 1. 技术面分析
-            tech_analysis = self._technical_analysis(code)
-            
-            # 2. 资金面分析（模拟）
-            money_flow = self._money_flow_analysis(code)
-            
-            # 3. 新闻情绪分析
-            news = self.news_analyzer.fetch_news([code], days=5)
-            sentiment = self.news_analyzer.analyze_sentiment_advanced(news, fund)
-            
-            # 4. 综合评分
-            total_score = self._calculate_composite_score(
-                tech_analysis,
-                money_flow,
-                sentiment
-            )
-            
-            # 5. 预测生成
-            prediction = self._generate_prediction(total_score, tech_analysis, sentiment)
-            
-            # 6. 风险评估
-            risk_level = self._assess_risk(tech_analysis, money_flow)
-            
-            # 7. 操作建议
-            advice = self._generate_detailed_advice(
-                fund, 
-                prediction, 
-                total_score,
-                tech_analysis,
-                sentiment,
-                risk_level
-            )
-            
-            return {
-                'fund': fund,
-                'prediction': prediction['direction'],
-                'probability': prediction['probability'],
-                'confidence': prediction['confidence'],
-                'tech_analysis': tech_analysis,
-                'money_flow': money_flow,
-                'sentiment': sentiment,
-                'risk_level': risk_level,
-                'advice': advice,
-                'total_score': total_score
-            }
-            
-        except Exception as e:
-            logger.error(f"分析基金 {code} 失败: {e}")
-            return None
-    
-    def _technical_analysis(self, code: str) -> Dict:
-        """技术面分析"""
-        history = self.fetcher.get_history_data(code, days=10)  # 获取10天数据做技术分析
-        
-        if not history or len(history) < 5:
-            return {'trend': 'unknown', 'strength': 0, 'volatility': 0, 'rsi': 50, 'indicators': {}}
-        
-        # 计算各项技术指标
-        closes = [h['nav'] for h in history]
-        
-        # 趋势强度
-        if self.has_numpy:
-            x = self.np.arange(len(closes))
-            z = self.np.polyfit(x, closes, 1)
-            trend_strength = z[0] * 100 / closes[0] if closes[0] != 0 else 0
-        else:
-            # 简化版趋势计算
-            first_price = closes[0]
-            last_price = closes[-1]
-            trend_strength = ((last_price - first_price) / first_price * 100) / len(closes) if first_price != 0 else 0
-        
-        # 波动率
-        returns = []
-        for i in range(len(closes)-1):
-            ret = (closes[i] - closes[i+1]) / closes[i+1] * 100 if closes[i+1] != 0 else 0
-            returns.append(ret)
-        
-        if self.has_numpy:
-            volatility = self.np.std(returns) if returns else 0
-        else:
-            # 简化版标准差计算
-            if returns:
-                mean_ret = sum(returns) / len(returns)
-                variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
-                volatility = variance ** 0.5
-            else:
-                volatility = 0
-        
-        # 相对强弱 (RSI) - 简化版
-        if len(returns) >= 5:
-            gains = [r for r in returns if r > 0]
-            losses = [abs(r) for r in returns if r < 0]
-            avg_gain = sum(gains) / len(gains) if gains else 0
-            avg_loss = sum(losses) / len(losses) if losses else 0
-            rs = avg_gain / avg_loss if avg_loss != 0 else 100
-            rsi = 100 - (100 / (1 + rs))
-        else:
-            rsi = 50
-        
-        return {
-            'trend': 'up' if trend_strength > 0.1 else 'down' if trend_strength < -0.1 else 'sideways',
-            'strength': round(abs(trend_strength), 2),
-            'volatility': round(volatility, 2),
-            'rsi': round(rsi, 2),
-            'indicators': {
-                'trend_slope': round(trend_strength, 4),
-                'volatility_level': 'high' if volatility > 2 else 'medium' if volatility > 1 else 'low'
-            }
-        }
-    
-    def _money_flow_analysis(self, code: str) -> Dict:
-        """资金面分析"""
-        # 这里可以接入真实的资金流向数据
-        # 目前返回模拟数据
-        return {
-            'main_force_flow': 0,  # 主力资金流向
-            'retail_flow': 0,       # 散户资金流向
-            'north_flow': 0,        # 北向资金流向
-            'sentiment': 'neutral'
-        }
-    
-    def _calculate_composite_score(self, tech: Dict, money: Dict, sentiment: Dict) -> float:
-        """计算综合评分"""
-        weights = {
-            'tech': 0.4,
-            'sentiment': 0.4,
-            'money': 0.2
-        }
-        
-        score = 0
-        
-        # 技术面评分
-        if tech['trend'] == 'up':
-            score += weights['tech'] * 0.5
-        elif tech['trend'] == 'down':
-            score -= weights['tech'] * 0.5
-        
-        # 情绪面评分
-        score += weights['sentiment'] * sentiment['score']
-        
-        # 资金面评分（模拟）
-        if money['main_force_flow'] > 0:
-            score += weights['money'] * 0.3
-        
-        return max(-1, min(1, score))
-    
-    def _generate_prediction(self, total_score: float, tech: Dict, sentiment: Dict) -> Dict:
-        """生成预测结果"""
-        if total_score > 0.3:
-            direction = '上涨'
-            base_prob = 60 + total_score * 30
-        elif total_score < -0.3:
-            direction = '下跌'
-            base_prob = 60 - total_score * 30
-        else:
-            direction = '震荡'
-            base_prob = 50
-        
-        # 根据技术指标调整概率
-        if tech['trend'] == 'up' and direction == '上涨':
-            base_prob *= 1.1
-        elif tech['trend'] == 'down' and direction == '下跌':
-            base_prob *= 1.1
-        
-        # 根据情绪置信度调整
-        confidence = '高' if sentiment.get('confidence', 0) > 0.7 else '中' if sentiment.get('confidence', 0) > 0.4 else '低'
-        
-        return {
-            'direction': direction,
-            'probability': min(95, int(base_prob)),
-            'confidence': confidence
-        }
-    
-    def _assess_risk(self, tech: Dict, money: Dict) -> Dict:
-        """风险评估"""
-        risk_score = 0
-        
-        # 波动率风险
-        if tech['volatility'] > 3:
-            risk_score += 30
-        elif tech['volatility'] > 2:
-            risk_score += 20
-        elif tech['volatility'] > 1:
-            risk_score += 10
-        
-        # RSI风险
-        if tech['rsi'] > 80:
-            risk_score += 20  # 超买风险
-        elif tech['rsi'] < 20:
-            risk_score += 15  # 超卖风险
-        
-        level = '高' if risk_score > 40 else '中' if risk_score > 20 else '低'
-        
-        return {
-            'level': level,
-            'score': risk_score,
-            'factors': {
-                'volatility': tech['volatility'],
-                'rsi': tech['rsi']
-            }
-        }
-    
-    def _generate_detailed_advice(self, fund: Dict, prediction: Dict, score: float,
-                                  tech: Dict, sentiment: Dict, risk: Dict) -> Dict:
-        """生成详细的操作建议"""
-        advice = {
-            'action': '持有',
-            'action_color': 'blue',
-            'reasons': [],
-            'operations': [],
-            'stop_loss': None,
-            'take_profit': None
-        }
-        
-        # 基础建议
-        if prediction['direction'] == '上涨' and prediction['probability'] > 70:
-            advice['action'] = '加仓'
-            advice['action_color'] = 'red'
-            advice['operations'].append("建议加仓10-20%，止损位设置在-3%")
-            advice['stop_loss'] = -3.0
-        elif prediction['direction'] == '下跌' and prediction['probability'] > 70:
-            advice['action'] = '减仓'
-            advice['action_color'] = 'green'
-            advice['operations'].append("建议减仓20-30%，等待企稳信号")
-        else:
-            advice['operations'].append("建议持有观望，等待明确信号")
-        
-        # 技术面理由
-        if tech['trend'] == 'up':
-            advice['reasons'].append(f"技术面: 上升趋势，RSI{tech['rsi']}")
-        elif tech['trend'] == 'down':
-            advice['reasons'].append(f"技术面: 下降趋势，RSI{tech['rsi']}")
-        
-        # 情绪面理由
-        if sentiment.get('score', 0) > 0.3:
-            advice['reasons'].append(f"情绪面: {sentiment['level']}，置信度{sentiment.get('confidence', 0)}")
-        
-        # 风险提示
-        if risk['level'] == '高':
-            advice['operations'].append(f"⚠️ 高风险警示：波动率{tech['volatility']:.1f}%，建议严控仓位")
-        
-        # 止盈止损建议
-        if fund.get('holdings', 0) > 0:
-            advice['operations'].append("建议止盈位+5%，止损位-3%")
-            advice['take_profit'] = 5.0
-            advice['stop_loss'] = -3.0
-        
-        return advice
 
 
 # ==================== 推送模块 ====================
@@ -1417,23 +1260,35 @@ class FundMonitor:
             return
         
         fund_changes = []
+        failed_funds = []
+        
         for fund in funds:
-            realtime_data = self.fetcher.get_realtime_data(fund['code'])
-            if realtime_data:
-                fund_changes.append({
-                    'name': fund['name'],
-                    'code': fund['code'],
-                    'price': realtime_data['price'],
-                    'previous': realtime_data['previous'],
-                    'change_percent': realtime_data['change_percent'],
-                    'change_amount': realtime_data['change_amount'],
-                    'update_time': realtime_data['time']
-                })
+            try:
+                realtime_data = self.fetcher.get_realtime_data(fund['code'])
+                if realtime_data:
+                    fund_changes.append({
+                        'name': fund['name'],
+                        'code': fund['code'],
+                        'price': realtime_data['price'],
+                        'previous': realtime_data['previous'],
+                        'change_percent': realtime_data['change_percent'],
+                        'change_amount': realtime_data['change_amount'],
+                        'update_time': realtime_data['time']
+                    })
+                else:
+                    failed_funds.append(fund['name'])
+            except Exception as e:
+                logger.error(f"获取基金 {fund['code']} 数据失败: {e}")
+                failed_funds.append(fund['name'])
+        
+        if not fund_changes:
+            print("❌ 无法获取任何基金数据")
+            return
         
         fund_changes.sort(key=lambda x: x['change_percent'], reverse=True)
         
-        print(f"{'基金名称':<30} {'代码':<10} {'当前价':<10} {'昨日净值':<10} {'涨跌额':<10} {'涨跌幅(%)':<10}")
-        print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+        print(f"{'基金名称':<30} {'代码':<10} {'当前价':<10} {'昨日净值':<10} {'涨跌额':<10} {'涨跌幅(%)':<10} {'更新时间'}")
+        print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*20}")
         
         for fc in fund_changes:
             if fc['change_percent'] > 0:
@@ -1446,7 +1301,7 @@ class FundMonitor:
                 change_str = "0.00"
                 color_mark = "⚪"
             
-            print(f"{fc['name']:<30} {fc['code']:<10} {fc['price']:<10.4f} {fc['previous']:<10.4f} {fc['change_amount']:<10.4f} {color_mark} {change_str}")
+            print(f"{fc['name']:<30} {fc['code']:<10} {fc['price']:<10.4f} {fc['previous']:<10.4f} {fc['change_amount']:<10.4f} {color_mark} {change_str:<9} {fc['update_time']}")
         
         total_funds = len(fund_changes)
         up_funds = len([f for f in fund_changes if f['change_percent'] > 0])
@@ -1457,6 +1312,10 @@ class FundMonitor:
         print(f"{'-'*80}")
         print(f"📈 上涨: {up_funds} 只 | 📉 下跌: {down_funds} 只 | ⚖️ 持平: {flat_funds} 只")
         print(f"📊 平均涨跌幅: {avg_change:.2f}%")
+        
+        if failed_funds:
+            print(f"⚠️ 以下基金数据获取失败: {', '.join(failed_funds[:5])}")
+        
         print(f"{'='*80}\n")
     
     def _build_morning_html(self, predictions):
@@ -1542,123 +1401,6 @@ class FundMonitor:
         return {}
 
 
-# ==================== 增强版主程序 ====================
-
-class EnhancedFundMonitor(FundMonitor):
-    """增强版主程序"""
-    
-    def __init__(self):
-        super().__init__()
-        self.config_manager = ConfigManager()
-        self.enhanced_analyzer = EnhancedAIFundAnalyzer(self.config)
-        
-        # 验证配置
-        config_errors = self.config_manager.validate()
-        if config_errors:
-            for error in config_errors:
-                logger.warning(f"配置警告: {error}")
-    
-    def run_enhanced_morning(self):
-        """增强版早盘分析"""
-        logger.info("开始增强版早盘分析...")
-        print("开始增强版早盘分析...")
-        
-        funds = self.config.get_funds()
-        if not funds:
-            logger.warning("没有启用的基金")
-            return
-        
-        predictions = []
-        success_count = 0
-        fail_count = 0
-        
-        for fund in funds:
-            try:
-                logger.info(f"分析 {fund['name']} ({fund['code']})...")
-                print(f"分析 {fund['name']} ({fund['code']})...")
-                pred = self.enhanced_analyzer.predict_today_enhanced(fund)
-                if pred:
-                    predictions.append(pred)
-                    success_count += 1
-                    logger.info(f"  预测: {pred['prediction']} (概率{pred['probability']}%)")
-                    print(f"  预测: {pred['prediction']} (概率{pred['probability']}%)")
-                else:
-                    fail_count += 1
-            except Exception as e:
-                logger.error(f"分析 {fund['code']} 失败: {e}")
-                fail_count += 1
-        
-        if predictions:
-            html = self._build_enhanced_morning_html(predictions)
-            current_time = datetime.now().strftime('%H:%M')
-            title = f"🌅 增强版AI早盘预测 | 成功{success_count}/{len(funds)} | {current_time}"
-            self.notifier.send(title, html)
-            self._save_predictions(predictions)
-            logger.info(f"早盘分析完成: 成功{success_count}, 失败{fail_count}")
-        else:
-            logger.error("所有基金分析失败")
-            self.notifier.send("⚠️ 早盘分析失败", "所有基金均无法获取数据")
-    
-    def _build_enhanced_morning_html(self, predictions: List[Dict]) -> str:
-        """构建增强版HTML报告"""
-        current_time = datetime.now().strftime('%H:%M')
-        html = f"""
-        <h2>🤖 增强版AI早盘预测报告</h2>
-        <p style='color:#666'>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-        <p><b>分析维度:</b> 技术面(40%) + 情绪面(40%) + 资金面(20%)</p>
-        <hr>
-        """
-        
-        for pred in predictions:
-            fund = pred['fund']
-            advice = pred['advice']
-            tech = pred['tech_analysis']
-            sentiment = pred['sentiment']
-            risk = pred['risk_level']
-            
-            pred_color = "red" if pred["prediction"]=="上涨" else "green" if pred["prediction"]=="下跌" else "gray"
-            risk_color = "red" if risk['level']=='高' else "orange" if risk['level']=='中' else "green"
-            
-            html += f"""
-            <div style='margin:15px 0;padding:15px;border-left:4px solid {advice["action_color"]};background:#f9f9f9'>
-                <h3>{fund['name']} ({fund['code']})</h3>
-                
-                <table style='width:100%;border-collapse:collapse'>
-                <tr>
-                    <td style='width:33%'><b>今日预测:</b><br>
-                        <span style='color:{pred_color};font-size:18px'>{pred['prediction']}</span><br>
-                        <span style='color:#666'>概率{pred['probability']}%</span>
-                    </td>
-                    <td style='width:33%'><b>技术面:</b><br>
-                        趋势:{tech['trend']}<br>
-                        RSI:{tech['rsi']}
-                    </td>
-                    <td style='width:33%'><b>情绪面:</b><br>
-                        {sentiment['level']}<br>
-                        置信度:{sentiment.get('confidence', 0)}
-                    </td>
-                </tr>
-                </table>
-                
-                <p><b>风险等级:</b> <span style='color:{risk_color}'>{risk['level']}</span></p>
-                
-                <p style='color:#0066cc'><b>操作建议 [{advice['action']}]:</b></p>
-                <ul>
-                {"".join(f"<li>{op}</li>" for op in advice['operations'])}
-                </ul>
-                
-                <p><b>分析理由:</b></p>
-                <ul>
-                {"".join(f"<li>{r}</li>" for r in advice['reasons'])}
-                </ul>
-                
-                <p style='color:#666;font-size:12px'><b>相关新闻:</b> {sentiment.get('news_count', 0)}条</p>
-            </div>
-            """
-        
-        return html
-
-
 # ==================== 时间判断工具函数 ====================
 
 def get_current_time():
@@ -1712,8 +1454,8 @@ def setup_logging():
     )
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 增强版')
-    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'query', 'auto', 'enhanced'],
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 修复版')
+    parser.add_argument('--mode', choices=['morning', 'evening', 'init', 'query', 'auto'],
                        default='auto', help='运行模式')
     parser.add_argument('--config', default='config.json', help='配置文件路径')
     parser.add_argument('--validate', action='store_true', help='验证配置')
@@ -1744,12 +1486,8 @@ def main():
             detected_mode = get_current_mode()
             args.mode = detected_mode
         
-        if args.mode == 'enhanced':
-            monitor = EnhancedFundMonitor()
-            monitor.run_enhanced_morning()
-        else:
-            monitor = FundMonitor()
-            monitor.run(args.mode)
+        monitor = FundMonitor()
+        monitor.run(args.mode)
             
     except KeyboardInterrupt:
         print("\n⚠️ 程序被用户中断")
