@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-基金AI盯盘系统 - 简化版
-直接使用模拟数据，确保能够正常运行
+基金AI盯盘系统 - 定时推送版
+功能：每隔半小时自动执行，查看涨跌情况并推送
+支持：早盘分析、收盘复盘、定时查询
 """
 
 import argparse
@@ -12,8 +13,11 @@ import sys
 import logging
 import pytz
 import random
+import time
+import schedule
+import threading
 from datetime import datetime, timedelta, time as dt_time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 # -------------------------- 日志配置 --------------------------
 LOG_FILE = '/tmp/fund_monitor.log' if os.environ.get('GITHUB_ACTIONS') else 'fund_monitor.log'
@@ -29,6 +33,49 @@ logger = logging.getLogger(__name__)
 
 # -------------------------- 全局时区配置 --------------------------
 TARGET_TIMEZONE = pytz.timezone('Asia/Shanghai')
+
+
+# ==================== PushPlus推送配置 ====================
+
+class PushNotifier:
+    """Pushplus推送"""
+    
+    def __init__(self, token=None):
+        self.token = token or os.environ.get('PUSHPLUS_TOKEN', '')
+        self.url = "http://www.pushplus.plus/send"
+        
+    def send(self, title, content, template='txt'):
+        """发送推送"""
+        if not self.token:
+            logger.warning("未配置Pushplus Token，跳过推送")
+            print(f"\n📱 【推送内容】\n{title}\n{content}\n")
+            return False
+        
+        try:
+            import requests
+            data = {
+                'token': self.token,
+                'title': title[:100],
+                'content': content,
+                'template': template
+            }
+            
+            resp = requests.post(self.url, json=data, timeout=10)
+            if resp.status_code == 200:
+                result = resp.json()
+                if result.get('code') == 200:
+                    logger.info(f"推送成功: {title}")
+                    return True
+                else:
+                    logger.error(f"推送失败: {result}")
+            else:
+                logger.error(f"推送请求失败: {resp.status_code}")
+        except Exception as e:
+            logger.error(f"推送异常: {e}")
+            
+        # 如果推送失败，至少打印到控制台
+        print(f"\n📱 【推送内容】\n{title}\n{content}\n")
+        return False
 
 
 # ==================== 基金数据 ====================
@@ -92,31 +139,45 @@ class MockDataGenerator:
             'time': datetime.now().strftime('%H:%M'),
             'type': fund.get('type', 'index')
         }
+    
+    @staticmethod
+    def get_trend_data(days=5):
+        """生成趋势数据"""
+        trends = []
+        for i in range(days):
+            date = (datetime.now() - timedelta(days=days-i)).strftime('%m-%d')
+            change = round(random.uniform(-2.0, 2.0), 2)
+            trends.append({
+                'date': date,
+                'change': change
+            })
+        return trends
 
 
 # ==================== 基金监控主程序 ====================
 
 class FundMonitor:
-    """基金监控主程序 - 简化版"""
+    """基金监控主程序 - 定时推送版"""
     
-    def __init__(self):
+    def __init__(self, push_token=None):
         self.funds = FUNDS
         self.mock_generator = MockDataGenerator()
-    
+        self.notifier = PushNotifier(push_token)
+        self.last_push_time = None
+        self.push_interval = 30  # 默认30分钟推送一次
+        
     def run(self, mode):
         """运行指定模式"""
         logger.info(f"基金AI盯盘系统启动 - 模式: {mode}")
-        print(f"\n{'='*50}")
-        print(f"基金AI盯盘系统 - 模式: {mode}")
-        print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'='*50}\n")
         
         if mode == 'morning':
             self.morning_analysis()
         elif mode == 'evening':
             self.evening_summary()
         elif mode == 'query':
-            self.get_daily_change_summary()
+            self.get_daily_change_summary(push=True)
+        elif mode == 'daemon':
+            self.run_daemon()
         else:
             print(f"未知模式: {mode}")
     
@@ -125,59 +186,67 @@ class FundMonitor:
         print("\n🌅 早盘分析")
         print("-" * 40)
         
+        analysis_result = []
         for fund in self.funds:
-            # 生成模拟数据
             data = self.mock_generator.get_realtime_data(fund)
+            trends = self.mock_generator.get_trend_data()
             
-            # 生成随机预测
-            prediction = random.choice(['上涨', '下跌', '震荡'])
-            prob = random.randint(55, 85)
+            # 生成预测
+            prediction = self._generate_prediction(data, trends)
             
-            # 生成建议
-            if prediction == '上涨':
-                action = random.choice(['加仓', '持有', '观望'])
-                color = '🟢' if action == '加仓' else '⚪'
-            elif prediction == '下跌':
-                action = random.choice(['减仓', '观望', '持有'])
-                color = '🔴' if action == '减仓' else '⚪'
-            else:
-                action = '持有'
-                color = '⚪'
+            fund_result = {
+                'name': fund['name'],
+                'code': fund['code'],
+                'price': data['price'],
+                'change': data['change_percent'],
+                'prediction': prediction,
+                'trends': trends
+            }
+            analysis_result.append(fund_result)
             
             print(f"{fund['name']}:")
-            print(f"  📊 当前价: {data['price']:.4f} | 昨日: {data['previous']:.4f}")
-            print(f"  📈 涨跌幅: {data['change_percent']:+.2f}%")
-            print(f"  🔮 预测: {prediction} (概率{prob}%)")
-            print(f"  {color} 建议: {action}")
+            print(f"  📊 当前价: {data['price']:.4f} ({data['change_percent']:+.2f}%)")
+            print(f"  🔮 预测: {prediction['direction']} (概率{prediction['probability']}%)")
+            print(f"  💡 建议: {prediction['advice']}")
             print()
+        
+        # 推送早盘分析报告
+        self._push_morning_report(analysis_result)
     
     def evening_summary(self):
         """收盘复盘"""
         print("\n🌙 收盘复盘")
         print("-" * 40)
         
+        summary_result = []
         for fund in self.funds:
-            # 生成模拟数据
             data = self.mock_generator.get_realtime_data(fund)
             
-            # 生成随机预测准确率
-            correct = random.choice([True, False])
-            accuracy = random.randint(40, 90)
+            # 生成复盘评价
+            review = self._generate_review(data)
             
-            status = "✅ 准确" if correct else "❌ 偏差"
+            fund_result = {
+                'name': fund['name'],
+                'code': fund['code'],
+                'price': data['price'],
+                'change': data['change_percent'],
+                'review': review
+            }
+            summary_result.append(fund_result)
             
             print(f"{fund['name']}:")
-            print(f"  📊 收盘价: {data['price']:.4f}")
-            print(f"  📈 涨跌幅: {data['change_percent']:+.2f}%")
-            print(f"  {status} 今日预测准确率: {accuracy}%")
+            print(f"  📊 收盘价: {data['price']:.4f} ({data['change_percent']:+.2f}%)")
+            print(f"  📝 评价: {review}")
             print()
-    
-    def get_daily_change_summary(self):
-        """获取所有基金当日涨跌汇总"""
-        print(f"\n{'='*80}")
-        print(f"📊 基金当日涨跌情况汇总 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'='*80}")
         
+        # 推送收盘复盘报告
+        self._push_evening_report(summary_result)
+    
+    def get_daily_change_summary(self, push=False):
+        """获取所有基金当日涨跌汇总"""
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 生成数据
         fund_data = []
         for fund in self.funds:
             data = self.mock_generator.get_realtime_data(fund)
@@ -186,24 +255,6 @@ class FundMonitor:
         # 按涨跌幅排序
         fund_data.sort(key=lambda x: x['change_percent'], reverse=True)
         
-        # 打印表头
-        print(f"{'基金名称':<30} {'代码':<10} {'当前价':<10} {'昨日净值':<10} {'涨跌额':<10} {'涨跌幅(%)':<10}")
-        print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
-        
-        # 打印每只基金数据
-        for data in fund_data:
-            if data['change_percent'] > 0:
-                change_str = f"+{data['change_percent']:.2f}"
-                color_mark = "🟢"
-            elif data['change_percent'] < 0:
-                change_str = f"{data['change_percent']:.2f}"
-                color_mark = "🔴"
-            else:
-                change_str = "0.00"
-                color_mark = "⚪"
-            
-            print(f"{data['name']:<30} {data['code']:<10} {data['price']:<10.4f} {data['previous']:<10.4f} {data['change_amount']:<10.4f} {color_mark} {change_str}")
-        
         # 统计信息
         total_funds = len(fund_data)
         up_funds = len([f for f in fund_data if f['change_percent'] > 0])
@@ -211,40 +262,244 @@ class FundMonitor:
         flat_funds = total_funds - up_funds - down_funds
         avg_change = sum([f['change_percent'] for f in fund_data]) / total_funds if total_funds > 0 else 0
         
-        print(f"{'-'*80}")
-        print(f"📈 上涨: {up_funds} 只 | 📉 下跌: {down_funds} 只 | ⚖️ 持平: {flat_funds} 只")
-        print(f"📊 平均涨跌幅: {avg_change:.2f}%")
-        print(f"{'='*80}\n")
+        # 找出表现最好的基金
+        best_fund = max(fund_data, key=lambda x: x['change_percent']) if fund_data else None
+        worst_fund = min(fund_data, key=lambda x: x['change_percent']) if fund_data else None
         
-        # 组合建议
-        self._generate_portfolio_advice(fund_data)
+        # 生成组合建议
+        portfolio_advice = self._generate_portfolio_advice(fund_data)
+        
+        # 打印到控制台
+        self._print_summary(current_time, fund_data, up_funds, down_funds, flat_funds, 
+                           avg_change, best_fund, worst_fund, portfolio_advice)
+        
+        # 推送通知
+        if push:
+            self._push_timely_report(current_time, fund_data, up_funds, down_funds, flat_funds,
+                                    avg_change, best_fund, worst_fund, portfolio_advice)
+        
+        return {
+            'time': current_time,
+            'funds': fund_data,
+            'stats': {
+                'total': total_funds,
+                'up': up_funds,
+                'down': down_funds,
+                'flat': flat_funds,
+                'avg_change': avg_change
+            },
+            'best': best_fund,
+            'worst': worst_fund,
+            'advice': portfolio_advice
+        }
+    
+    def run_daemon(self):
+        """以守护进程模式运行，每隔30分钟执行一次"""
+        print(f"\n{'='*50}")
+        print(f"🚀 基金监控守护进程启动")
+        print(f"📅 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"⏰ 推送间隔: 30分钟")
+        print(f"{'='*50}\n")
+        
+        # 立即执行一次
+        logger.info("首次执行...")
+        self.get_daily_change_summary(push=True)
+        
+        # 设置定时任务
+        schedule.every(30).minutes.do(self._timed_push)
+        
+        # 添加时间检查任务
+        schedule.every().day.at("09:30").do(self._check_and_push, "morning_start")
+        schedule.every().day.at("11:30").do(self._check_and_push, "morning_end")
+        schedule.every().day.at("13:00").do(self._check_and_push, "afternoon_start")
+        schedule.every().day.at("15:00").do(self._check_and_push, "afternoon_end")
+        
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("守护进程被用户中断")
+            print("\n👋 守护进程已停止")
+    
+    def _timed_push(self):
+        """定时推送"""
+        current_hour = datetime.now().hour
+        
+        # 非交易时间不推送
+        if current_hour < 9 or current_hour > 15:
+            logger.info("非交易时间，跳过推送")
+            return
+        
+        logger.info("执行定时推送...")
+        self.get_daily_change_summary(push=True)
+    
+    def _check_and_push(self, period):
+        """检查并推送特定时段的信息"""
+        logger.info(f"执行{period}时段推送...")
+        self.get_daily_change_summary(push=True)
+    
+    def _generate_prediction(self, data, trends):
+        """生成预测"""
+        # 基于当前涨跌和趋势生成预测
+        current_change = data['change_percent']
+        avg_trend = sum([t['change'] for t in trends]) / len(trends) if trends else 0
+        
+        if current_change > 1.0 and avg_trend > 0:
+            direction = '上涨'
+            probability = random.randint(65, 85)
+            advice = '建议持有或小幅加仓'
+        elif current_change < -1.0 and avg_trend < 0:
+            direction = '下跌'
+            probability = random.randint(65, 85)
+            advice = '建议观望或减仓'
+        else:
+            direction = random.choice(['震荡', '小幅上涨', '小幅下跌'])
+            probability = random.randint(50, 65)
+            advice = '建议持有观望'
+        
+        return {
+            'direction': direction,
+            'probability': probability,
+            'advice': advice
+        }
+    
+    def _generate_review(self, data):
+        """生成复盘评价"""
+        change = data['change_percent']
+        
+        if change > 2.0:
+            return '强势上涨，表现优异'
+        elif change > 1.0:
+            return '温和上涨，走势稳健'
+        elif change > 0:
+            return '微幅上涨，趋势向好'
+        elif change > -1.0:
+            return '小幅下跌，正常调整'
+        elif change > -2.0:
+            return '明显下跌，需警惕风险'
+        else:
+            return '大幅下跌，建议关注'
     
     def _generate_portfolio_advice(self, fund_data):
         """生成组合建议"""
-        print("\n📋 组合策略建议")
-        print("-" * 40)
-        
         up_ratio = len([f for f in fund_data if f['change_percent'] > 0]) / len(fund_data)
         
         if up_ratio > 0.6:
-            print("📈 市场情绪: 乐观")
-            print("💡 建议: 保持较高仓位 (70-80%)")
-            print("🎯 重点关注: 领涨的指数基金")
+            return {
+                'sentiment': '乐观',
+                'suggestion': '保持较高仓位 (70-80%)',
+                'focus': '领涨的指数基金'
+            }
         elif up_ratio < 0.3:
-            print("📉 市场情绪: 谨慎")
-            print("💡 建议: 降低仓位防御 (30-40%)")
-            print("🎯 重点关注: 跌幅较小的混合基金")
+            return {
+                'sentiment': '谨慎',
+                'suggestion': '降低仓位防御 (30-40%)',
+                'focus': '跌幅较小的混合基金'
+            }
         else:
-            print("⚖️ 市场情绪: 中性")
-            print("💡 建议: 均衡配置 (50-60%仓位)")
-            print("🎯 重点关注: 波动较小的基金")
+            return {
+                'sentiment': '中性',
+                'suggestion': '均衡配置 (50-60%仓位)',
+                'focus': '波动较小的基金'
+            }
+    
+    def _print_summary(self, current_time, fund_data, up_funds, down_funds, flat_funds, 
+                       avg_change, best_fund, worst_fund, portfolio_advice):
+        """打印汇总信息"""
+        print(f"\n{'='*80}")
+        print(f"📊 基金实时监控 - {current_time}")
+        print(f"{'='*80}")
         
-        # 找出表现最好的基金
-        best_fund = max(fund_data, key=lambda x: x['change_percent'])
-        worst_fund = min(fund_data, key=lambda x: x['change_percent'])
+        print(f"{'基金名称':<30} {'代码':<10} {'当前价':<10} {'涨跌幅':<10} {'状态'}")
+        print(f"{'-'*30} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
         
-        print(f"\n🏆 今日最佳: {best_fund['name']} (+{best_fund['change_percent']:.2f}%)")
-        print(f"💔 今日最差: {worst_fund['name']} ({worst_fund['change_percent']:.2f}%)")
+        for data in fund_data:
+            if data['change_percent'] > 0:
+                status = "🟢 上涨"
+            elif data['change_percent'] < 0:
+                status = "🔴 下跌"
+            else:
+                status = "⚪ 持平"
+            
+            print(f"{data['name']:<30} {data['code']:<10} {data['price']:<10.4f} {data['change_percent']:>+7.2f}%  {status}")
+        
+        print(f"{'-'*80}")
+        print(f"📈 上涨: {up_funds} 只 | 📉 下跌: {down_funds} 只 | ⚖️ 持平: {flat_funds} 只")
+        print(f"📊 平均涨跌幅: {avg_change:+.2f}%")
+        
+        if best_fund:
+            print(f"🏆 今日最佳: {best_fund['name']} (+{best_fund['change_percent']:.2f}%)")
+        if worst_fund:
+            print(f"💔 今日最差: {worst_fund['name']} ({worst_fund['change_percent']:.2f}%)")
+        
+        print(f"\n📋 组合策略建议")
+        print(f"  市场情绪: {portfolio_advice['sentiment']}")
+        print(f"  建议仓位: {portfolio_advice['suggestion']}")
+        print(f"  重点关注: {portfolio_advice['focus']}")
+        print(f"{'='*80}\n")
+    
+    def _push_timely_report(self, current_time, fund_data, up_funds, down_funds, flat_funds,
+                           avg_change, best_fund, worst_fund, portfolio_advice):
+        """推送定时报告"""
+        title = f"⏰ 基金实时监控 {current_time}"
+        
+        # 构建推送内容
+        content = f"【市场概况】\n"
+        content += f"📈 上涨: {up_funds}只\n"
+        content += f"📉 下跌: {down_funds}只\n"
+        content += f"⚖️ 持平: {flat_funds}只\n"
+        content += f"📊 平均涨跌幅: {avg_change:+.2f}%\n\n"
+        
+        content += "【涨跌前5】\n"
+        # 涨幅前5
+        content += "📈 涨幅榜:\n"
+        for data in fund_data[:5]:
+            content += f"  • {data['name']}: {data['change_percent']:+.2f}%\n"
+        
+        # 跌幅前5
+        content += "\n📉 跌幅榜:\n"
+        for data in fund_data[-5:]:
+            content += f"  • {data['name']}: {data['change_percent']:+.2f}%\n"
+        
+        if best_fund and worst_fund:
+            content += f"\n🏆 最佳: {best_fund['name']} (+{best_fund['change_percent']:.2f}%)\n"
+            content += f"💔 最差: {worst_fund['name']} ({worst_fund['change_percent']:.2f}%)\n"
+        
+        content += f"\n【策略建议】\n"
+        content += f"市场情绪: {portfolio_advice['sentiment']}\n"
+        content += f"建议仓位: {portfolio_advice['suggestion']}\n"
+        content += f"重点关注: {portfolio_advice['focus']}\n"
+        
+        self.notifier.send(title, content, template='txt')
+    
+    def _push_morning_report(self, analysis_result):
+        """推送早盘分析报告"""
+        title = f"🌅 早盘分析 {datetime.now().strftime('%m-%d %H:%M')}"
+        
+        content = "【今日预测】\n"
+        for fund in analysis_result[:5]:  # 只推送前5只
+            content += f"• {fund['name']}: {fund['prediction']['direction']} "
+            content += f"(概率{fund['prediction']['probability']}%)\n"
+            content += f"  建议: {fund['prediction']['advice']}\n"
+        
+        self.notifier.send(title, content, template='txt')
+    
+    def _push_evening_report(self, summary_result):
+        """推送收盘复盘报告"""
+        title = f"🌙 收盘复盘 {datetime.now().strftime('%m-%d %H:%M')}"
+        
+        content = "【今日复盘】\n"
+        up_count = len([f for f in summary_result if f['change'] > 0])
+        down_count = len([f for f in summary_result if f['change'] < 0])
+        
+        content += f"上涨: {up_count}只 | 下跌: {down_count}只\n\n"
+        
+        content += "【表现回顾】\n"
+        for fund in summary_result[:5]:
+            content += f"• {fund['name']}: {fund['change']:+.2f}% - {fund['review']}\n"
+        
+        self.notifier.send(title, content, template='txt')
 
 
 # ==================== 时间判断工具函数 ====================
@@ -285,12 +540,45 @@ def get_current_mode():
         return 'query'
 
 
+# ==================== 配置文件管理 ====================
+
+def load_config():
+    """加载配置文件"""
+    config_file = 'fund_config.json'
+    default_config = {
+        'pushplus_token': '',
+        'push_interval': 30,  # 推送间隔（分钟）
+        'enable_morning_push': True,
+        'enable_evening_push': True,
+        'enable_timely_push': True
+    }
+    
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            # 合并默认配置
+            for key, value in default_config.items():
+                if key not in config:
+                    config[key] = value
+            return config
+    except FileNotFoundError:
+        # 创建默认配置文件
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(default_config, f, ensure_ascii=False, indent=2)
+        print(f"✅ 已创建配置文件: {config_file}")
+        print("请编辑配置文件添加PushPlus Token")
+        return default_config
+
+
 # ==================== 入口 ====================
 
 def main():
-    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 简化版')
-    parser.add_argument('--mode', choices=['morning', 'evening', 'query', 'auto'],
+    parser = argparse.ArgumentParser(description='基金AI盯盘系统 - 定时推送版')
+    parser.add_argument('--mode', choices=['morning', 'evening', 'query', 'auto', 'daemon'],
                        default='auto', help='运行模式')
+    parser.add_argument('--token', help='PushPlus Token')
+    parser.add_argument('--interval', type=int, default=30, help='推送间隔（分钟）')
+    parser.add_argument('--init-config', action='store_true', help='初始化配置文件')
     args = parser.parse_args()
     
     # 设置日志
@@ -304,23 +592,46 @@ def main():
     )
     
     try:
+        # 初始化配置文件
+        if args.init_config:
+            config = load_config()
+            print(f"配置文件路径: fund_config.json")
+            print(f"请设置您的PushPlus Token后重新运行")
+            return
+        
+        # 加载配置
+        config = load_config()
+        push_token = args.token or config.get('pushplus_token')
+        
+        if not push_token and args.mode != 'query':
+            print("⚠️ 未配置PushPlus Token，推送功能将不可用")
+            print("可以通过以下方式设置：")
+            print("1. 编辑 fund_config.json 文件")
+            print("2. 使用 --token 参数指定")
+            print("3. 设置环境变量 PUSHPLUS_TOKEN")
+        
+        # 设置随机种子
+        random.seed(datetime.now().timestamp())
+        
         # 自动模式判断
         if args.mode == 'auto':
             detected_mode = get_current_mode()
             args.mode = detected_mode
         
         # 运行监控程序
-        monitor = FundMonitor()
-        monitor.run(args.mode)
+        monitor = FundMonitor(push_token)
+        
+        if args.mode == 'daemon':
+            monitor.run_daemon()
+        else:
+            monitor.run(args.mode)
         
     except KeyboardInterrupt:
-        print("\n⚠️ 程序被用户中断")
+        print("\n👋 程序已停止")
     except Exception as e:
         logger.error(f"程序运行失败: {e}", exc_info=True)
         print(f"❌ 程序运行失败: {e}")
 
 
 if __name__ == '__main__':
-    # 设置随机种子，使每次运行结果不同
-    random.seed(datetime.now().timestamp())
     main()
