@@ -14,10 +14,23 @@ import logging
 import pytz
 import random
 import time
-import schedule
-import threading
 from datetime import datetime, timedelta, time as dt_time
 from typing import Dict, List, Optional, Any
+
+# 尝试导入schedule，如果没有则安装
+try:
+    import schedule
+    HAS_SCHEDULE = True
+except ImportError:
+    HAS_SCHEDULE = False
+    print("提示: 如需守护进程模式，请安装 schedule: pip install schedule")
+
+# 尝试导入requests
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 # -------------------------- 日志配置 --------------------------
 LOG_FILE = '/tmp/fund_monitor.log' if os.environ.get('GITHUB_ACTIONS') else 'fund_monitor.log'
@@ -48,11 +61,15 @@ class PushNotifier:
         """发送推送"""
         if not self.token:
             logger.warning("未配置Pushplus Token，跳过推送")
-            print(f"\n📱 【推送内容】\n{title}\n{content}\n")
+            print(f"\n📱 【模拟推送】\n标题: {title}\n内容:\n{content}\n")
+            return False
+        
+        if not HAS_REQUESTS:
+            logger.error("未安装requests库，无法发送推送")
+            print(f"\n📱 【模拟推送】\n标题: {title}\n内容:\n{content}\n")
             return False
         
         try:
-            import requests
             data = {
                 'token': self.token,
                 'title': title[:100],
@@ -295,10 +312,15 @@ class FundMonitor:
     
     def run_daemon(self):
         """以守护进程模式运行，每隔30分钟执行一次"""
+        if not HAS_SCHEDULE:
+            print("❌ 错误: 未安装schedule库，无法运行守护进程模式")
+            print("请安装: pip install schedule")
+            return
+        
         print(f"\n{'='*50}")
         print(f"🚀 基金监控守护进程启动")
         print(f"📅 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"⏰ 推送间隔: 30分钟")
+        print(f"⏰ 推送间隔: {self.push_interval}分钟")
         print(f"{'='*50}\n")
         
         # 立即执行一次
@@ -306,7 +328,7 @@ class FundMonitor:
         self.get_daily_change_summary(push=True)
         
         # 设置定时任务
-        schedule.every(30).minutes.do(self._timed_push)
+        schedule.every(self.push_interval).minutes.do(self._timed_push)
         
         # 添加时间检查任务
         schedule.every().day.at("09:30").do(self._check_and_push, "morning_start")
@@ -326,9 +348,14 @@ class FundMonitor:
         """定时推送"""
         current_hour = datetime.now().hour
         
-        # 非交易时间不推送
+        # 非交易时间不推送（9:00-15:00）
         if current_hour < 9 or current_hour > 15:
             logger.info("非交易时间，跳过推送")
+            return
+        
+        # 周末不推送
+        if datetime.now().weekday() >= 5:  # 5=周六, 6=周日
+            logger.info("周末，跳过推送")
             return
         
         logger.info("执行定时推送...")
@@ -502,6 +529,57 @@ class FundMonitor:
         self.notifier.send(title, content, template='txt')
 
 
+# ==================== 配置文件管理（修复版）====================
+
+def load_config():
+    """加载配置文件 - 修复版"""
+    config_file = 'fund_config.json'
+    default_config = {
+        'pushplus_token': '',
+        'push_interval': 30,
+        'enable_morning_push': True,
+        'enable_evening_push': True,
+        'enable_timely_push': True
+    }
+    
+    # 如果文件不存在，创建默认配置文件
+    if not os.path.exists(config_file):
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(default_config, f, ensure_ascii=False, indent=2)
+            print(f"✅ 已创建配置文件: {config_file}")
+            print("请编辑配置文件添加PushPlus Token")
+        except Exception as e:
+            logger.error(f"创建配置文件失败: {e}")
+        return default_config
+    
+    # 文件存在，尝试读取
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+            if not content:
+                # 文件为空，写入默认配置
+                with open(config_file, 'w', encoding='utf-8') as f:
+                    json.dump(default_config, f, ensure_ascii=False, indent=2)
+                print(f"✅ 配置文件为空，已写入默认配置")
+                return default_config
+            
+            config = json.loads(content)
+            # 合并默认配置
+            for key, value in default_config.items():
+                if key not in config:
+                    config[key] = value
+            return config
+    except json.JSONDecodeError as e:
+        logger.error(f"配置文件格式错误: {e}")
+        print(f"❌ 配置文件 {config_file} 格式错误，将使用默认配置")
+        print("请检查文件内容或删除后重新生成")
+        return default_config
+    except Exception as e:
+        logger.error(f"读取配置文件失败: {e}")
+        return default_config
+
+
 # ==================== 时间判断工具函数 ====================
 
 def get_current_time():
@@ -540,36 +618,6 @@ def get_current_mode():
         return 'query'
 
 
-# ==================== 配置文件管理 ====================
-
-def load_config():
-    """加载配置文件"""
-    config_file = 'fund_config.json'
-    default_config = {
-        'pushplus_token': '',
-        'push_interval': 30,  # 推送间隔（分钟）
-        'enable_morning_push': True,
-        'enable_evening_push': True,
-        'enable_timely_push': True
-    }
-    
-    try:
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-            # 合并默认配置
-            for key, value in default_config.items():
-                if key not in config:
-                    config[key] = value
-            return config
-    except FileNotFoundError:
-        # 创建默认配置文件
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(default_config, f, ensure_ascii=False, indent=2)
-        print(f"✅ 已创建配置文件: {config_file}")
-        print("请编辑配置文件添加PushPlus Token")
-        return default_config
-
-
 # ==================== 入口 ====================
 
 def main():
@@ -579,6 +627,7 @@ def main():
     parser.add_argument('--token', help='PushPlus Token')
     parser.add_argument('--interval', type=int, default=30, help='推送间隔（分钟）')
     parser.add_argument('--init-config', action='store_true', help='初始化配置文件')
+    parser.add_argument('--show-config', action='store_true', help='显示当前配置')
     args = parser.parse_args()
     
     # 设置日志
@@ -595,13 +644,24 @@ def main():
         # 初始化配置文件
         if args.init_config:
             config = load_config()
-            print(f"配置文件路径: fund_config.json")
-            print(f"请设置您的PushPlus Token后重新运行")
+            print(f"\n✅ 配置文件已初始化: fund_config.json")
+            print(f"配置文件内容:")
+            print(json.dumps(config, ensure_ascii=False, indent=2))
+            print(f"\n请编辑文件添加您的PushPlus Token后重新运行")
             return
         
         # 加载配置
         config = load_config()
-        push_token = args.token or config.get('pushplus_token')
+        
+        # 显示配置
+        if args.show_config:
+            print(f"\n当前配置:")
+            print(json.dumps(config, ensure_ascii=False, indent=2))
+            return
+        
+        # 获取推送Token（优先级：命令行 > 配置文件 > 环境变量）
+        push_token = args.token or config.get('pushplus_token') or os.environ.get('PUSHPLUS_TOKEN', '')
+        push_interval = args.interval or config.get('push_interval', 30)
         
         if not push_token and args.mode != 'query':
             print("⚠️ 未配置PushPlus Token，推送功能将不可用")
@@ -609,6 +669,7 @@ def main():
             print("1. 编辑 fund_config.json 文件")
             print("2. 使用 --token 参数指定")
             print("3. 设置环境变量 PUSHPLUS_TOKEN")
+            print("4. 运行 --init-config 初始化配置文件\n")
         
         # 设置随机种子
         random.seed(datetime.now().timestamp())
@@ -620,6 +681,7 @@ def main():
         
         # 运行监控程序
         monitor = FundMonitor(push_token)
+        monitor.push_interval = push_interval
         
         if args.mode == 'daemon':
             monitor.run_daemon()
