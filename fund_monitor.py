@@ -276,28 +276,27 @@ class FundMonitor:
         print("-" * 40)
         
         analysis_result = []
-        for fund in self.funds:
+        def _fetch_fund_analysis(fund):
             data = self.fetcher.get_realtime_data(fund)
             trends = self.fetcher.get_trend_data(code=fund['code'])
-            
-            # 生成预测
             prediction = self._generate_prediction(data, trends)
-            
-            fund_result = {
-                'name': fund['name'],
-                'code': fund['code'],
-                'price': data['price'],
-                'change': data['change_percent'],
-                'prediction': prediction,
-                'trends': trends
-            }
-            analysis_result.append(fund_result)
-            
-            print(f"{fund['name']}:")
-            print(f"  📊 当前价: {data['price']:.4f} ({data['change_percent']:+.2f}%)")
-            print(f"  🔮 预测: {prediction['direction']} (概率{prediction['probability']}%)")
-            print(f"  💡 建议: {prediction['advice']}")
-            print()
+            return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'prediction': prediction, 'trends': trends}
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_fetch_fund_analysis, fund): fund for fund in self.funds}
+            for future in as_completed(futures):
+                try:
+                    result = future.result(timeout=15)
+                    analysis_result.append(result)
+                    p = result['prediction']
+                    print(f"{result['name']}:")
+                    print(f"  📊 当前价: {result['price']:.4f} ({result['change']:+.2f}%)")
+                    print(f"  🔮 预测: {p['direction']} (概率{p['probability']}%)")
+                    print(f"  💡 建议: {p['advice']}")
+                    print()
+                except Exception as e:
+                    fund = futures[future]
+                    logger.error(f"{fund['code']} 获取失败: {e}")
         
         # 推送早盘分析报告
         self._push_morning_report(analysis_result)
@@ -308,25 +307,24 @@ class FundMonitor:
         print("-" * 40)
         
         summary_result = []
-        for fund in self.funds:
+        def _fetch_fund_evening(fund):
             data = self.fetcher.get_realtime_data(fund)
-            
-            # 生成复盘评价
             review = self._generate_review(data)
-            
-            fund_result = {
-                'name': fund['name'],
-                'code': fund['code'],
-                'price': data['price'],
-                'change': data['change_percent'],
-                'review': review
-            }
-            summary_result.append(fund_result)
-            
-            print(f"{fund['name']}:")
-            print(f"  📊 收盘价: {data['price']:.4f} ({data['change_percent']:+.2f}%)")
-            print(f"  📝 评价: {review}")
-            print()
+            return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'review': review}
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_fetch_fund_evening, fund): fund for fund in self.funds}
+            for future in as_completed(futures):
+                try:
+                    result = future.result(timeout=15)
+                    summary_result.append(result)
+                    print(f"{result['name']}:")
+                    print(f"  📊 收盘价: {result['price']:.4f} ({result['change']:+.2f}%)")
+                    print(f"  📝 评价: {result['review']}")
+                    print()
+                except Exception as e:
+                    fund = futures[future]
+                    logger.error(f"{fund['code']} 获取失败: {e}")
         
         # 推送收盘复盘报告
         self._push_evening_report(summary_result)
@@ -335,11 +333,23 @@ class FundMonitor:
         """获取所有基金当日涨跌汇总"""
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # 生成数据
+        # 并发获取数据（加快速度）
         fund_data = []
-        for fund in self.funds:
-            data = self.fetcher.get_realtime_data(fund)
-            fund_data.append(data)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(self.fetcher.get_realtime_data, fund): fund for fund in self.funds}
+            for future in as_completed(futures):
+                try:
+                    data = future.result(timeout=10)
+                    fund_data.append(data)
+                except Exception as e:
+                    fund = futures[future]
+                    logger.error(f"{fund['code']} 获取失败: {e}")
+                    fund_data.append({
+                        'code': fund['code'], 'name': fund['name'],
+                        'price': 0, 'change_percent': 0,
+                        'change_amount': 0, 'time': '--:--',
+                        'type': fund.get('type', 'index'), 'error': True,
+                    })
         
         # 按涨跌幅排序
         fund_data.sort(key=lambda x: x['change_percent'], reverse=True)
