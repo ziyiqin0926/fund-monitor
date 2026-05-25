@@ -1,6 +1,5 @@
-json
-{
-    "pushplus_token": "ac2c6a2d2eee4a93ae97b6c0e4660099",
+﻿{
+    "pushplus_token": "",
     "push_interval": 30,
     "enable_morning_push": true,
     "enable_evening_push": true,
