@@ -16,6 +16,7 @@ import random
 import time
 from datetime import datetime, timedelta, time as dt_time
 from typing import Dict, List, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 尝试导入schedule，如果没有则安装
 try:
@@ -134,7 +135,7 @@ def fetch_realtime_estimate(code: str) -> Optional[Dict]:
     """从东方财富获取基金实时估值"""
     url = f'https://fundgz.1234567.com.cn/js/{code}.js'
     try:
-        resp = requests.get(url, headers=API_HEADERS, timeout=10)
+        resp = requests.get(url, headers=API_HEADERS, timeout=5)
         resp.encoding = 'utf-8'
         text = resp.text.strip()
         # 解析 JSONP: jsonpgz({...});
