@@ -1,0 +1,28 @@
+2026-05-26 02:10:50,651 - ERROR - 配置文件格式错误: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+2026-05-26 02:10:50,651 - ERROR - 程序运行失败: 'gbk' codec can't encode character '\u274c' in position 0: illegal multibyte sequence
+Traceback (most recent call last):
+  File "C:\Users\ASUS\Documents\基金盯盘\fund_monitor.py", line 638, in load_config
+    config = json.loads(content)
+  File "C:\Users\ASUS\AppData\Local\Python\pythoncore-3.14-64\Lib\json\__init__.py", line 341, in loads
+    raise JSONDecodeError("Unexpected UTF-8 BOM (decode using utf-8-sig)",
+                          s, 0)
+json.decoder.JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\ASUS\Documents\基金盯盘\fund_monitor.py", line 725, in main
+    config = load_config()
+  File "C:\Users\ASUS\Documents\基金盯盘\fund_monitor.py", line 646, in load_config
+    print(f"❌ 配置文件 {config_file} 格式错误，将使用默认配置")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u274c' in position 0: illegal multibyte sequence
+2026-05-26 02:10:58,332 - INFO - 基金AI盯盘系统启动 - 模式: query
+2026-05-26 02:11:06,387 - ERROR - 119529 所有数据接口均失败
+2026-05-26 02:11:07,835 - ERROR - 119920 所有数据接口均失败
+2026-05-26 02:11:08,402 - WARNING - 未配置Pushplus Token，跳过推送
+2026-05-26 02:11:44,572 - ERROR - 读取基金列表失败: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+2026-05-26 02:11:44,573 - INFO - 基金AI盯盘系统启动 - 模式: query
+2026-05-26 02:11:46,121 - WARNING - 未配置Pushplus Token，跳过推送
+2026-05-26 02:11:51,727 - INFO - 基金AI盯盘系统启动 - 模式: query
+2026-05-26 02:12:00,770 - WARNING - 未配置Pushplus Token，跳过推送

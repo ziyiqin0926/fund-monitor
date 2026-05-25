@@ -97,88 +97,159 @@ class PushNotifier:
 
 # ==================== 基金数据 ====================
 
-FUNDS = [
-    {"code": "017548", "name": "天弘国证2000指数增强C", "type": "index"},
-    {"code": "021620", "name": "天弘中证油气产业指数C", "type": "index"},
-    {"code": "002170", "name": "东吴移动互联灵活配置混合C", "type": "hybrid"},
-    {"code": "022486", "name": "国金中证A500指数增强C", "type": "index"},
-    {"code": "017484", "name": "财通资管数字经济混合C", "type": "hybrid"},
-    {"code": "011803", "name": "富顺长城宁景6个月持有期混合A", "type": "hybrid"},
-    {"code": "021580", "name": "华夏人工智能ETF联接D", "type": "index"},
-    {"code": "017730", "name": "嘉实全球产业升级股票(QDII)A", "type": "stock"},
-    {"code": "000071", "name": "华夏恒生ETF联接(QDII)A", "type": "index"},
-    {"code": "002580", "name": "泰信鑫选灵活配置混合C", "type": "hybrid"},
-    {"code": "019993", "name": "创金合信北证50成份指数增强A", "type": "index"},
-    {"code": "018124", "name": "永赢先进制造智选混合A", "type": "hybrid"},
-    {"code": "021298", "name": "中欧北证50成份指数A", "type": "index"},
-    {"code": "015916", "name": "永赢医药创新智选混合C", "type": "hybrid"},
-    {"code": "016539", "name": "鹏华碳中和主题混合A", "type": "hybrid"},
-    {"code": "119529", "name": "易方达创业板ETF联接A", "type": "index"},
-    {"code": "021175", "name": "华安北证50成份指数C", "type": "index"},
-    {"code": "119920", "name": "易方达深证300ETF联接A", "type": "index"},
-    {"code": "011612", "name": "华夏科创50ETF联接A", "type": "index"}
-]
+
+# ==================== 加载基金列表 ====================
+
+def load_funds_from_config(path='config.json'):
+    """从 config.json 加载基金列表（含持仓、成本价等）"""
+    default_funds = [
+        {"code": "017548", "name": "天弘国证2000指数增强C"},
+        {"code": "021620", "name": "天弘中证油气产业指数C"},
+        {"code": "002170", "name": "东吴移动互联灵活配置混合C"},
+    ]
+    try:
+        if not os.path.exists(path):
+            logger.warning(f"配置文件 {path} 不存在，使用默认基金列表")
+            return default_funds
+        with open(path, 'r', encoding='utf-8-sig') as f:
+            data = json.load(f)
+        funds = data.get('funds', [])
+        if not funds:
+            return default_funds
+        return funds
+    except Exception as e:
+        logger.error(f"读取基金列表失败: {e}")
+        return default_funds
 
 
-# ==================== 模拟数据生成器 ====================
+# ==================== 东方财富数据接口 ====================
 
-class MockDataGenerator:
-    """模拟数据生成器"""
-    
+API_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Referer': 'http://fund.eastmoney.com/',
+}
+
+
+def fetch_realtime_estimate(code: str) -> Optional[Dict]:
+    """从东方财富获取基金实时估值"""
+    url = f'https://fundgz.1234567.com.cn/js/{code}.js'
+    try:
+        resp = requests.get(url, headers=API_HEADERS, timeout=10)
+        resp.encoding = 'utf-8'
+        text = resp.text.strip()
+        # 解析 JSONP: jsonpgz({...});
+        if text.startswith('jsonpgz(') and text.endswith(');'):
+            text = text[8:-2]
+        data = json.loads(text)
+        return {
+            'code': data['fundcode'],
+            'name': data['name'],
+            'est_nav': float(data['gsz']),
+            'est_change_pct': float(data['gszzl']),
+            'nav_date': data['jzrq'],
+            'nav': float(data['dwjz']),
+            'est_time': data['gztime'],
+        }
+    except Exception as e:
+        logger.debug(f"获取估值失败 {code}: {e}")
+        return None
+
+
+def fetch_history(code: str, days: int = 10) -> List[Dict]:
+    """获取基金历史净值"""
+    url = f'https://api.fund.eastmoney.com/f10/lsjz'
+    params = {
+        'callback': 'jQuery',
+        'fundCode': code,
+        'pageIndex': 1,
+        'pageSize': days,
+        'startDate': '',
+        'endDate': '',
+    }
+    try:
+        resp = requests.get(url, params=params, headers=API_HEADERS, timeout=10)
+        text = resp.text.strip()
+        if text.startswith('jQuery(') and text.endswith(')'):
+            text = text[7:-1]
+        data = json.loads(text)
+        rows = data.get('Data', {}).get('LSJZList', [])
+        trends = []
+        for row in rows:
+            nav = row.get('DWJZ', '')
+            if nav:
+                trends.append({
+                    'date': row['FSRQ'],
+                    'nav': float(nav),
+                })
+        return trends
+    except Exception as e:
+        logger.debug(f"获取历史净值失败 {code}: {e}")
+        return []
+
+
+class RealDataFetcher:
+    """基于东方财富 API 的真实数据获取器"""
+
     @staticmethod
     def get_realtime_data(fund: Dict) -> Dict:
-        """生成模拟的实时数据"""
-        # 生成一个在-3%到+3%之间的随机涨跌幅
-        change_percent = round(random.uniform(-3.0, 3.0), 2)
-        
-        # 根据基金类型生成不同的基准价格
-        fund_type = fund.get('type', 'index')
-        if fund_type == 'index':
-            base_price = random.uniform(1.0, 2.0)
-        elif fund_type == 'hybrid':
-            base_price = random.uniform(1.5, 2.5)
-        elif fund_type == 'stock':
-            base_price = random.uniform(2.0, 3.0)
+        """获取单只基金实时数据"""
+        code = fund['code']
+        name = fund['name']
+        result = fetch_realtime_estimate(code)
+
+        if result:
+            change_pct = result['est_change_pct']
+            est_nav = result['est_nav']
+            nav = result['nav']
         else:
-            base_price = random.uniform(1.0, 2.0)
-        
-        price = round(base_price, 4)
-        previous = round(price / (1 + change_percent/100), 4)
-        change_amount = round(price - previous, 4)
-        
+            # 估值接口失败时用最新净值
+            history = fetch_history(code, 1)
+            if history:
+                nav = history[0]['nav']
+                change_pct = 0.0
+                est_nav = nav
+                logger.warning(f"{code} 估值接口不可用，使用最新净值")
+            else:
+                logger.error(f"{code} 所有数据接口均失败")
+                return {
+                    'code': code, 'name': name,
+                    'price': 0, 'change_percent': 0,
+                    'change_amount': 0, 'time': datetime.now().strftime('%H:%M'),
+                    'type': fund.get('type', 'index'), 'error': True,
+                }
+
+        # 计算预计收益
+        holdings = fund.get('holdings', 0)
+        cost_price = fund.get('cost_price', 0)
+        estimate_profit = 0
+        if holdings > 0 and cost_price > 0:
+            estimate_profit = round((est_nav - cost_price) * holdings, 2)
+        else:
+            estimate_profit = round(est_nav * change_pct / 100 * holdings, 2)
+
         return {
-            'code': fund['code'],
-            'name': fund['name'],
-            'price': price,
-            'previous': previous,
-            'change_percent': change_percent,
-            'change_amount': change_amount,
-            'time': datetime.now().strftime('%H:%M'),
-            'type': fund.get('type', 'index')
+            'code': code,
+            'name': name,
+            'price': est_nav,
+            'change_percent': round(change_pct, 2),
+            'change_amount': round(est_nav - nav, 4),
+            'profit': estimate_profit,
+            'time': result['est_time'] if result else '--:--',
+            'type': fund.get('type', 'index'),
+            'nav_date': result['nav_date'] if result else '',
+            'nav': nav,
         }
-    
+
     @staticmethod
-    def get_trend_data(days=5):
-        """生成趋势数据"""
-        trends = []
-        for i in range(days):
-            date = (datetime.now() - timedelta(days=days-i)).strftime('%m-%d')
-            change = round(random.uniform(-2.0, 2.0), 2)
-            trends.append({
-                'date': date,
-                'change': change
-            })
-        return trends
-
-
-# ==================== 基金监控主程序 ====================
-
+    def get_trend_data(days: int = 5) -> List[Dict]:
+        """返回空趋势（个股不集中做趋势，由 FundMonitor 按基金分别获取）"""
+        return []
 class FundMonitor:
     """基金监控主程序 - 定时推送版"""
     
     def __init__(self, push_token=None):
-        self.funds = FUNDS
-        self.mock_generator = MockDataGenerator()
+        self.funds = load_funds_from_config()
+        self.fetcher = RealDataFetcher()
         self.notifier = PushNotifier(push_token)
         self.last_push_time = None
         self.push_interval = 30  # 默认30分钟推送一次
@@ -205,8 +276,8 @@ class FundMonitor:
         
         analysis_result = []
         for fund in self.funds:
-            data = self.mock_generator.get_realtime_data(fund)
-            trends = self.mock_generator.get_trend_data()
+            data = self.fetcher.get_realtime_data(fund)
+            trends = self.fetcher.get_trend_data(code=fund['code'])
             
             # 生成预测
             prediction = self._generate_prediction(data, trends)
@@ -237,7 +308,7 @@ class FundMonitor:
         
         summary_result = []
         for fund in self.funds:
-            data = self.mock_generator.get_realtime_data(fund)
+            data = self.fetcher.get_realtime_data(fund)
             
             # 生成复盘评价
             review = self._generate_review(data)
@@ -266,7 +337,7 @@ class FundMonitor:
         # 生成数据
         fund_data = []
         for fund in self.funds:
-            data = self.mock_generator.get_realtime_data(fund)
+            data = self.fetcher.get_realtime_data(fund)
             fund_data.append(data)
         
         # 按涨跌幅排序
@@ -672,9 +743,7 @@ def main():
             print("4. 运行 --init-config 初始化配置文件\n")
         
         # 设置随机种子
-        random.seed(datetime.now().timestamp())
-        
-        # 自动模式判断
+                # 自动模式判断
         if args.mode == 'auto':
             detected_mode = get_current_mode()
             args.mode = detected_mode
@@ -697,3 +766,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
