@@ -5,7 +5,7 @@
             "name": "华宝上证科创板芯片ETF发起式联接C",
             "type": "index",
             "holdings": 178.59,
-            "cost_price": 0,
+            "cost_price": 3.9196,
             "weight": 0.25,
             "alert_threshold": 3.0,
             "enabled": true
@@ -15,7 +15,7 @@
             "name": "嘉实上证科创板芯片ETF发起联接C",
             "type": "index",
             "holdings": 35.89,
-            "cost_price": 0,
+            "cost_price": 2.7863,
             "weight": 0.25,
             "alert_threshold": 3.0,
             "enabled": true
@@ -25,7 +25,7 @@
             "name": "财通成长优选混合C",
             "type": "hybrid",
             "holdings": 24.93,
-            "cost_price": 0,
+            "cost_price": 3.9735,
             "weight": 0.25,
             "alert_threshold": 3.0,
             "enabled": true
@@ -35,7 +35,7 @@
             "name": "南方中证电池ETF联接C",
             "type": "index",
             "holdings": 108.35,
-            "cost_price": 0,
+            "cost_price": 1.8459,
             "weight": 0.25,
             "alert_threshold": 3.0,
             "enabled": true

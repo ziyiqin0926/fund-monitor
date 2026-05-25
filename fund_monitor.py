@@ -289,7 +289,7 @@ class FundMonitor:
                 raise Exception(f"{fund['code']} 数据获取失败")
             trends = self.fetcher.get_trend_data(code=fund['code'])
             prediction = self._generate_prediction(data, trends)
-            return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'prediction': prediction, 'trends': trends}
+            return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'profit': data.get('profit', 0), 'prediction': prediction, 'trends': trends}
         
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(_fetch_fund_analysis, fund): fund for fund in self.funds}
@@ -321,7 +321,7 @@ class FundMonitor:
             if data.get('error'):
                 raise Exception(f"{fund['code']} 数据获取失败")
             review = self._generate_review(data)
-            return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'review': review}
+            return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'profit': data.get('profit', 0), 'review': review}
         
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(_fetch_fund_evening, fund): fund for fund in self.funds}
@@ -588,11 +588,13 @@ class FundMonitor:
             else:
                 status = "⚪ 持平"
             
-            print(f"{data['name']:<30} {data['code']:<10} {data['price']:<10.4f} {data['change_percent']:>+7.2f}%  {status}")
+            profit_str = f" 预计{data['profit']:+.2f}" if data.get('profit') else ""
+            print(f"{data['name']:<30} {data['code']:<10} {data['price']:<10.4f} {data['change_percent']:>+7.2f}%  {status}{profit_str}")
         
         print(f"{'-'*80}")
         print(f"📈 上涨: {up_funds} 只 | 📉 下跌: {down_funds} 只 | ⚖️ 持平: {flat_funds} 只")
-        print(f"📊 平均涨跌幅: {avg_change:+.2f}%")
+        total_profit = sum(d.get('profit', 0) for d in fund_data)
+        print(f"📊 平均涨跌幅: {avg_change:+.2f}%   💰 预计总收益: {total_profit:+.2f}")
         
         if best_fund:
             print(f"🏆 今日最佳: {best_fund['name']} (+{best_fund['change_percent']:.2f}%)")
@@ -615,18 +617,22 @@ class FundMonitor:
         content += f"📈 上涨: {up_funds}只\n"
         content += f"📉 下跌: {down_funds}只\n"
         content += f"⚖️ 持平: {flat_funds}只\n"
-        content += f"📊 平均涨跌幅: {avg_change:+.2f}%\n\n"
+        total_profit = sum(d.get("profit", 0) for d in fund_data)
+        content += f"📊 平均涨跌幅: {avg_change:+.2f}%\n"
+        content += f"💰 预计总收益: {total_profit:+.2f}\n\n"
         
         content += "【涨跌前5】\n"
         # 涨幅前5
         content += "📈 涨幅榜:\n"
         for data in fund_data[:5]:
-            content += f"  • {data['name']}: {data['change_percent']:+.2f}%\n"
+            pnl = data.get("profit", 0)
+            content += f"  • {data['name']}: {data['change_percent']:+.2f}% (预计{pnl:+.2f})\n"
         
         # 跌幅前5
         content += "\n📉 跌幅榜:\n"
         for data in fund_data[-5:]:
-            content += f"  • {data['name']}: {data['change_percent']:+.2f}%\n"
+            pnl = data.get("profit", 0)
+            content += f"  • {data['name']}: {data['change_percent']:+.2f}% (预计{pnl:+.2f})\n"
         
         if best_fund and worst_fund:
             content += f"\n🏆 最佳: {best_fund['name']} (+{best_fund['change_percent']:.2f}%)\n"
