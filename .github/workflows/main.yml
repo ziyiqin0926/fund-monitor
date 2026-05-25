@@ -24,8 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # 新增 pytz 依赖安装（关键修复）
-          pip install requests beautifulsoup4 schedule pytz
+          pip install requests beautifulsoup4 schedule
 
       - name: Inject PushPlus Token
         run: |
