@@ -175,13 +175,18 @@ def fetch_history(code: str, days: int = 10) -> List[Dict]:
         data = json.loads(text)
         rows = data.get('Data', {}).get('LSJZList', [])
         trends = []
+        prev_nav = None
         for row in rows:
             nav = row.get('DWJZ', '')
             if nav:
+                nav_f = float(nav)
+                change = round((nav_f - prev_nav) / prev_nav * 100, 2) if prev_nav else 0.0
                 trends.append({
                     'date': row['FSRQ'],
-                    'nav': float(nav),
+                    'nav': nav_f,
+                    'change': change,
                 })
+                prev_nav = nav_f
         return trends
     except Exception as e:
         logger.debug(f"获取历史净值失败 {code}: {e}")
@@ -242,8 +247,10 @@ class RealDataFetcher:
         }
 
     @staticmethod
-    def get_trend_data(days: int = 5) -> List[Dict]:
-        """返回空趋势（个股不集中做趋势，由 FundMonitor 按基金分别获取）"""
+    def get_trend_data(code: str = '', days: int = 5) -> List[Dict]:
+        """获取单只基金历史净值趋势"""
+        if code:
+            return fetch_history(code, days)
         return []
 class FundMonitor:
     """基金监控主程序 - 定时推送版"""
@@ -278,6 +285,8 @@ class FundMonitor:
         analysis_result = []
         def _fetch_fund_analysis(fund):
             data = self.fetcher.get_realtime_data(fund)
+            if data.get('error'):
+                raise Exception(f"{fund['code']} 数据获取失败")
             trends = self.fetcher.get_trend_data(code=fund['code'])
             prediction = self._generate_prediction(data, trends)
             return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'prediction': prediction, 'trends': trends}
@@ -309,6 +318,8 @@ class FundMonitor:
         summary_result = []
         def _fetch_fund_evening(fund):
             data = self.fetcher.get_realtime_data(fund)
+            if data.get('error'):
+                raise Exception(f"{fund['code']} 数据获取失败")
             review = self._generate_review(data)
             return {'name': fund['name'], 'code': fund['code'], 'price': data['price'], 'change': data['change_percent'], 'review': review}
         
@@ -449,29 +460,57 @@ class FundMonitor:
         self.get_daily_change_summary(push=True)
     
     def _generate_prediction(self, data, trends):
-        """生成预测"""
-        # 基于当前涨跌和趋势生成预测
-        current_change = data['change_percent']
+        """基于实时数据和历史趋势生成明确预测"""
+        change = data['change_percent']
         avg_trend = sum([t['change'] for t in trends]) / len(trends) if trends else 0
         
-        if current_change > 1.0 and avg_trend > 0:
-            direction = '上涨'
-            probability = random.randint(65, 85)
-            advice = '建议持有或小幅加仓'
-        elif current_change < -1.0 and avg_trend < 0:
-            direction = '下跌'
-            probability = random.randint(65, 85)
-            advice = '建议观望或减仓'
-        else:
-            direction = random.choice(['震荡', '小幅上涨', '小幅下跌'])
-            probability = random.randint(50, 65)
-            advice = '建议持有观望'
+        # 趋势强度
+        trend_strength = 'strong' if abs(avg_trend) > 1.5 else ('mid' if abs(avg_trend) > 0.5 else 'weak')
         
-        return {
-            'direction': direction,
-            'probability': probability,
-            'advice': advice
-        }
+        # ===== 上涨信号 =====
+        if change > 3.0:
+            return {'direction': '强势上涨', 'probability': 85,
+                    'advice': '短期涨幅较大，已持有者可继续持有，不建议追高'}
+        if change > 1.5 and avg_trend > 1.0:
+            return {'direction': '震荡上涨', 'probability': 78,
+                    'advice': '上涨趋势明确，建议持有待涨'}
+        if change > 1.0 and trend_strength == 'weak':
+            return {'direction': '短期冲高', 'probability': 62,
+                    'advice': '单日涨幅较大但趋势偏弱，注意回调风险，暂不加仓'}
+        if 0 < change <= 1.0 and avg_trend > 0.5:
+            return {'direction': '稳步上行', 'probability': 72,
+                    'advice': '温和上涨配合上升趋势，可适当加仓'}
+        if 0 < change <= 1.0:
+            return {'direction': '小幅上涨', 'probability': 55,
+                    'advice': '微涨但趋势不明，建议持有观望'}
+        
+        # ===== 下跌信号 =====
+        if change < -3.0:
+            return {'direction': '大幅下跌', 'probability': 88,
+                    'advice': '短期暴跌，不要恐慌抛售，等待企稳后再决策'}
+        if change < -1.5 and avg_trend < -1.0:
+            return {'direction': '持续下跌', 'probability': 82,
+                    'advice': '下跌趋势确认，建议减仓避险'}
+        if change < -1.0 and trend_strength == 'weak':
+            return {'direction': '短期回调', 'probability': 60,
+                    'advice': '单日下跌但趋势未破，可继续持有观察'}
+        if -1.0 <= change < 0 and avg_trend < -0.5:
+            return {'direction': '偏弱下行', 'probability': 68,
+                    'advice': '趋势偏弱，建议降低仓位'}
+        if -1.0 <= change < 0:
+            return {'direction': '窄幅震荡', 'probability': 52,
+                    'advice': '小幅下跌属正常波动，建议持有不动'}
+        
+        # ===== 横盘信号 =====
+        if abs(change) <= 0.2:
+            if trend_strength == 'strong':
+                return {'direction': '趋势中继', 'probability': 70,
+                        'advice': f'横盘整理，原有{"上涨" if avg_trend>0 else "下跌"}趋势可能延续'}
+            return {'direction': '横盘整理', 'probability': 50,
+                    'advice': '方向不明，建议等待信号再做决策'}
+        
+        return {'direction': '方向不明确', 'probability': 45,
+                'advice': '数据不足，建议参考大盘走势综合判断'}
     
     def _generate_review(self, data):
         """生成复盘评价"""
@@ -491,26 +530,44 @@ class FundMonitor:
             return '大幅下跌，建议关注'
     
     def _generate_portfolio_advice(self, fund_data):
-        """生成组合建议"""
-        up_ratio = len([f for f in fund_data if f['change_percent'] > 0]) / len(fund_data)
+        """基于持仓基金整体表现给出明确组合建议"""
+        up_ratio = len([f for f in fund_data if f['change_percent'] > 0]) / len(fund_data) if fund_data else 0
+        avg_chg = sum(f['change_percent'] for f in fund_data) / len(fund_data) if fund_data else 0
+        max_chg = max(f['change_percent'] for f in fund_data) if fund_data else 0
+        min_chg = min(f['change_percent'] for f in fund_data) if fund_data else 0
         
-        if up_ratio > 0.6:
+        # 综合得分 [-10, +10]
+        score = (up_ratio - 0.5) * 10 + avg_chg * 0.8
+        
+        if score > 4:
             return {
-                'sentiment': '乐观',
-                'suggestion': '保持较高仓位 (70-80%)',
-                'focus': '领涨的指数基金'
+                'sentiment': '🔥 市场强势',
+                'suggestion': f'整体上涨（平均{avg_chg:+.2f}%），可维持满仓，关注最强品种',
+                'focus': f'领涨基金涨幅达{max_chg:+.2f}%，可适当追加'
             }
-        elif up_ratio < 0.3:
+        elif score > 1.5:
             return {
-                'sentiment': '谨慎',
-                'suggestion': '降低仓位防御 (30-40%)',
-                'focus': '跌幅较小的混合基金'
+                'sentiment': '📈 偏强震荡',
+                'suggestion': f'涨多跌少（涨跌比{up_ratio:.0%}），建议保持6-7成仓位',
+                'focus': f'重点关注涨幅稳定品种，避开{min_chg:+.2f}%的弱势基金'
+            }
+        elif score > -1.5:
+            return {
+                'sentiment': '➡️ 区间震荡',
+                'suggestion': f'涨跌互现，平均{avg_chg:+.2f}%，建议半仓观望',
+                'focus': '控制仓位在5成以内，等待方向明确'
+            }
+        elif score > -4:
+            return {
+                'sentiment': '📉 偏弱承压',
+                'suggestion': f'跌多涨少（涨跌比{up_ratio:.0%}），建议降至3-4成仓位',
+                'focus': f'跌幅最大的基金达{min_chg:+.2f}%，考虑是否止损'
             }
         else:
             return {
-                'sentiment': '中性',
-                'suggestion': '均衡配置 (50-60%仓位)',
-                'focus': '波动较小的基金'
+                'sentiment': '🔴 市场低迷',
+                'suggestion': f'普跌行情（平均{avg_chg:+.2f}%），建议轻仓防御（1-2成）',
+                'focus': '现金为王，等待企稳信号再入场'
             }
     
     def _print_summary(self, current_time, fund_data, up_funds, down_funds, flat_funds, 
